@@ -1,12 +1,32 @@
+// JSON as returned by /validators?height=<H>
+export interface ValidatorResponse {
+  jsonrpc: string;
+  id: number;
+  result: {
+    block_height: string;
+    validators: {
+      address: string;
+      pub_key: {
+        type: string;
+        value: string;
+      };
+      voting_power: string;
+      proposer_priority: string;
+    }[];
+    count: string;
+    total: string;
+  };
+}
+
 export interface Validator {
-  address: string;                  // 20-byte uppercase hex
-  key: CryptoKey;                   // Web Crypto Ed25519 public key for verify()
-  power: bigint;
+  address: string; // 20-byte uppercase hex
+  key: CryptoKey; // Web Crypto Ed25519 public key for verify()
+  power: number;
 }
 
 export interface ValidatorSet {
   height: bigint;
-  totalPower: bigint;
+  totalPower: number;
   validators: Validator[];
 }
 
@@ -23,8 +43,8 @@ export interface SignedHeader {
 // Header (proto/tmproto Header)
 export interface Header {
   chainId: string;
-  height: string;            // int64 as string
-  time: string;              // RFC3339Nano
+  height: string; // int64 as string
+  time: string; // RFC3339Nano
   lastBlockId?: BlockID | null;
   lastCommitHash?: Uint8Array | null;
   dataHash?: Uint8Array | null;
@@ -39,21 +59,21 @@ export interface Header {
 
 // Commit and signatures
 export interface Commit {
-  height: string;            // same as header.height
+  height: string; // same as header.height
   round: number;
   blockId: BlockID;
-  signatures: CommitSig[];   // one per validator index (some may be absent)
+  signatures: CommitSig[]; // one per validator index (some may be absent)
 }
 
 export type BlockIDFlag = 0 | 1 | 2; // Absent=0, Commit=2 (most common)
 export interface CommitSig {
   blockIdFlag: BlockIDFlag;
-  validatorAddress: Uint8Array;  // 20 bytes
-  timestamp: string;             // RFC3339Nano
+  validatorAddress: Uint8Array; // 20 bytes
+  timestamp: string; // RFC3339Nano
   signature?: Uint8Array | null; // Ed25519
 }
 
 export interface BlockID {
-  hash: Uint8Array;          // SHA-256 of the block parts
+  hash: Uint8Array; // SHA-256 of the block parts
   partSetHeader: { total: number; hash: Uint8Array };
 }
