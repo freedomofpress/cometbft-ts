@@ -1,5 +1,5 @@
 import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
-import { ValidatorResponse, ValidatorSet } from "./types";
+import { Validator, ValidatorResponse, ValidatorSet } from "./types";
 
 export async function importValidators(
   validatorsJson: ValidatorResponse,
@@ -13,30 +13,23 @@ export async function importValidators(
   }
 
   if (!validatorsJson.result.count || !validatorsJson.result.total) {
-    throw new Error(
-      "Missing validator count and totoal power from response object",
-    );
+    throw new Error("Missing validator count and total from response object");
   }
 
   if (!validatorsJson.result.block_height) {
     throw new Error("Missing block height");
   }
 
-  const totalPower = parseInt(validatorsJson.result.total);
+  const total = Number(validatorsJson.result.total);
 
-  if (totalPower !== parseInt(validatorsJson.result.count) || totalPower < 2) {
-    throw new Error("The response object must contain all validators");
+  if (total !== Number(validatorsJson.result.count) || total < 2) {
+    throw new Error("The response object must not paginate");
   }
 
   const height = BigInt(validatorsJson.result.block_height);
   let countedPower = 0;
-  const seen = new Set();
-
-  const validatorSet: ValidatorSet = {
-    height: height,
-    totalPower: totalPower,
-    validators: [],
-  };
+  const seen: Set<string> = new Set();
+  const validators: Validator[] = [];
 
   for (const validatorEntry of validatorsJson.result.validators) {
     if (!validatorEntry.address || validatorEntry.address.length != 40) {
@@ -47,10 +40,10 @@ export async function importValidators(
 
     if (
       !validatorEntry.pub_key ||
-      validatorEntry.pub_key.type ||
-      validatorEntry.pub_key.value
+      !validatorEntry.pub_key.type ||
+      !validatorEntry.pub_key.value
     ) {
-      throw new Error("Validator key object is valid");
+      throw new Error("Validator key object is invalid");
     }
 
     if (validatorEntry.pub_key.type !== "tendermint/PubKeyEd25519") {
@@ -62,6 +55,7 @@ export async function importValidators(
     const rawKey = new Uint8Array(
       base64ToUint8Array(validatorEntry.pub_key.value),
     );
+    // Should throw in case of error
     const key = await crypto.subtle.importKey(
       "raw",
       rawKey,
@@ -69,18 +63,14 @@ export async function importValidators(
       false,
       ["verify"],
     );
-    if (!key) {
-      throw new Error(
-        `Failed to import validator public key for ${validatorEntry.address}`,
-      );
-    }
 
     const calculatedAddress = Uint8ArrayToHex(
-      new Uint8Array(
-        await (await crypto.subtle.digest("SHA-256", rawKey)).slice(0, 20),
+      new Uint8Array(await crypto.subtle.digest("SHA-256", rawKey)).slice(
+        0,
+        20,
       ),
     ).toUpperCase();
-    if (calculatedAddress !== validatorEntry.address) {
+    if (calculatedAddress !== validatorEntry.address.toUpperCase()) {
       throw new Error(
         `Address ${validatorEntry.address} does not match its public key`,
       );
@@ -92,26 +82,28 @@ export async function importValidators(
 
     seen.add(calculatedAddress);
 
-    const power = parseInt(validatorEntry.voting_power);
+    const power = Number(validatorEntry.voting_power);
 
-    if (power >= totalPower || power <= 0) {
-      throw new Error("Validator voting power is too large or too small.");
+    if (!Number.isFinite(power) || !Number.isInteger(power) || power < 1) {
+      throw new Error(`Invalid voting power for ${calculatedAddress}`);
     }
 
     countedPower += power;
 
-    if (countedPower > totalPower) {
-      throw new Error("Voting power does not add up");
-    }
-
-    validatorSet.validators.push({
+    validators.push({
       key: key,
       address: calculatedAddress,
       power: power,
     });
   }
 
-  if (validatorSet.validators.length < 2) {
+  const validatorSet: ValidatorSet = {
+    height: height,
+    totalPower: countedPower,
+    validators: validators,
+  };
+
+  if (validatorSet.validators.length < 2 || validators.length !== total) {
     throw new Error("Failed to parse enough validators");
   }
 
