@@ -1,0 +1,33 @@
+{
+  "name": "cometbft",
+  "version": "0.1.0",
+  "description": "A CometBFT light client for the browser.",
+  "main": "dist/client.js",
+  "types": "dist/client.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "lint": "npx eslint . --fix && npx prettier --write ."
+  },
+  "keywords": [
+    "cometbft",
+    "ed25519",
+    "p2p",
+    "browser",
+    "typescript"
+  ],
+  "author": "Giulio B",
+  "license": "MIT",
+  "homepage": "https://github.com/freedomofpress/cometbft-ts#readme",
+  "repository": "github:freedomofpress/cometbft-ts",
+  "bugs": "https://github.com/freedomofpress/cometbft-ts/issues",
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "typescript-eslint": "^8.38.0"
+  }
+}
+
