@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Uint8ArrayToBase64 } from "../encoding";
 import { ValidatorResponse } from "./../types";
-import { importValidators } from "./../validator";
+import { importValidators } from "./../validators";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
