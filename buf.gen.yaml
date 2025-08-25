@@ -1,7 +1,7 @@
 version: v1
 plugins:
   - plugin: buf.build/community/stephenh-ts-proto:v2.6.1
-    out: src/gen
+    out: src/proto
     opt:
       - env=browser
       - esModuleInterop=true
