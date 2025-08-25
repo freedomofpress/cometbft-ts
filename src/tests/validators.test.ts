@@ -1,21 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { Uint8ArrayToBase64 } from "../encoding";
+import { Uint8ArrayToBase64, Uint8ArrayToHex, base64ToUint8Array } from "../encoding";
 import { ValidatorResponse } from "./../types";
 import { importValidators } from "./../validators";
+
+import validatorsFixture from "./fixtures/validators-12.json";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 async function sha256(u8: Uint8Array): Promise<Uint8Array> {
   const buf = await crypto.subtle.digest("SHA-256", new Uint8Array(u8));
   return new Uint8Array(buf);
-}
-
-function hexOf(u8: Uint8Array): string {
-  let out = "";
-  for (let i = 0; i < u8.length; i++)
-    out += u8[i].toString(16).padStart(2, "0");
-  return out;
 }
 
 function filledBytes(seed: number, len = 32): Uint8Array {
@@ -33,7 +28,7 @@ async function makeValidatorEntry(
   opts?: { lowercaseAddr?: boolean; keyType?: string },
 ) {
   const keyType = opts?.keyType ?? "tendermint/PubKeyEd25519";
-  const addr = hexOf((await sha256(pub)).slice(0, 20));
+  const addr = Uint8ArrayToHex((await sha256(pub)).slice(0, 20));
   return {
     address: opts?.lowercaseAddr ? addr : addr.toUpperCase(),
     pub_key: { type: keyType, value: Uint8ArrayToBase64(pub) },
@@ -202,5 +197,46 @@ describe("importValidators (browser crypto)", () => {
     await expect(importValidators(resp)).rejects.toThrow(
       /Failed to parse enough validators/i,
     );
+  });
+});
+
+describe("validators fixture:", () => {
+  it("derives address as SHA-256(pubkey)[0..20] (uppercased)", async () => {
+    const resp = validatorsFixture as unknown as ValidatorResponse;
+
+    for (const entry of resp.result.validators) {
+      // decode pubkey using your helper
+      const pubRaw = base64ToUint8Array(entry.pub_key.value);
+      // Tendermint address = first 20 bytes of SHA-256(pubkey), hex, UPPERCASE
+      const derived = Uint8ArrayToHex((await sha256(pubRaw)).slice(0, 20)).toUpperCase();
+
+      expect(derived).toBe(entry.address.toUpperCase());
+    }
+  });
+
+  it("imports Ed25519 public keys with correct WebCrypto attributes", async () => {
+    const resp = validatorsFixture as unknown as ValidatorResponse;
+
+    const set = await importValidators(resp);
+
+    // sanity
+    expect(set.height).toBe(12n);
+    expect(set.validators).toHaveLength(4);
+    expect(set.totalPower).toBe(4);
+
+    for (const v of set.validators) {
+      const key = v.key as CryptoKey;
+
+      // correct key metadata
+      expect(key.type).toBe("public");
+      expect((key.algorithm as EcKeyAlgorithm).name).toBe("Ed25519");
+      expect(key.usages).toEqual(["verify"]);
+      expect(key.extractable).toBe(false);
+
+      // non-extractable means exportKey should reject/throw
+      await expect(
+        crypto.subtle.exportKey("raw", key)
+      ).rejects.toBeTruthy();
+    }
   });
 });
