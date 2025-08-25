@@ -18,6 +18,60 @@ export interface ValidatorResponse {
   };
 }
 
+// JSON as returned by /commit?height=<H>
+export interface CommitResponse {
+  jsonrpc: string;
+  id: number;
+  result: {
+    signed_header: {
+      header: {
+        version: {
+          block: string;
+          app: string;
+        };
+        chain_id: string;
+        height: string;
+        time: string; // RFC3339 timestamp
+        last_block_id: {
+          hash: string;
+          parts: {
+            total: number;
+            hash: string;
+          };
+        };
+        last_commit_hash: string;
+        data_hash: string;
+        validators_hash: string;
+        next_validators_hash: string;
+        consensus_hash: string;
+        app_hash: string;
+        last_results_hash: string;
+        evidence_hash: string;
+        proposer_address: string;
+      };
+      commit: {
+        height: string;
+        round: number;
+        block_id: {
+          hash: string;
+          parts: {
+            total: number;
+            hash: string;
+          };
+        };
+        signatures: {
+          block_id_flag: number;
+          validator_address: string;
+          timestamp: string;
+          signature: string; // base64
+        }[];
+      };
+    };
+    canonical: boolean;
+  };
+}
+
+
 export interface Validator {
   address: string; // 20-byte uppercase hex
   key: CryptoKey; // Web Crypto Ed25519 public key for verify()
