@@ -5,6 +5,7 @@
   "main": "dist/client.js",
   "types": "dist/client.d.ts",
   "scripts": {
+    "proto:gen": "buf generate buf.build/cometbft/cometbft --path cometbft/types/v1/types.proto --path cometbft/types/v1/canonical.proto --path cometbft/types/v1/validator.proto",
     "build": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
