@@ -9,4 +9,5 @@ plugins:
       - forceLong=bigint
       - snakeToCamel=true
       - outputServices=none
+      - useDate=false
 

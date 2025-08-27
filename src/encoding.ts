@@ -24,15 +24,6 @@ export function Uint8ArrayToHex(uint8Array: Uint8Array): string {
   return [...uint8Array].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function stringToUint8Array(str: string): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode(str);
-}
-
-export function hexToBase64(hex: string): string {
-  return Uint8ArrayToBase64(hexToUint8Array(hex));
-}
-
 export function base64ToUint8Array(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const length = binaryString.length;

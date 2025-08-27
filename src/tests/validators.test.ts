@@ -1,8 +1,13 @@
+// src/tests/validators.test.ts
 import { describe, expect, it } from "vitest";
 
-import { Uint8ArrayToBase64, Uint8ArrayToHex, base64ToUint8Array } from "../encoding";
-import { ValidatorResponse } from "./../types";
-import { importValidators } from "./../validators";
+import {
+  Uint8ArrayToBase64,
+  Uint8ArrayToHex,
+  base64ToUint8Array,
+} from "../encoding";
+import type { ValidatorResponse } from "../types";
+import { importValidatorSetProto } from "../validators";
 
 import validatorsFixture from "./fixtures/validators-12.json";
 
@@ -59,57 +64,69 @@ function makeResponse(
 
 // ---------------------- tests -------------------------
 
-describe("importValidators (browser crypto)", () => {
-  it("happy path: imports full single-page set and sums number power", async () => {
+describe("importValidatorSetProto (browser crypto)", () => {
+  it("happy path: imports full single-page set and sums power", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 2);
     const v3 = await makeValidatorEntry(filledBytes(3), 3);
     const v4 = await makeValidatorEntry(filledBytes(4), 4);
     const resp = makeResponse([v1, v2, v3, v4], "42");
 
-    const set = await importValidators(resp);
+    const out = await importValidatorSetProto(resp);
 
-    expect(set.height).toBe(42n);
-    expect(set.validators).toHaveLength(4);
-    expect(set.totalPower).toBe(10); // 1+2+3+4
-    for (const v of set.validators) {
-      expect(v.address).toMatch(/^[0-9A-F]{40}$/);
-      expect(typeof v.power).toBe("number");
-      expect(v.power).toBeGreaterThanOrEqual(1);
+    expect(out.height).toBe(42n);
+    expect(out.proto.validators).toHaveLength(4);
+    expect(out.proto.totalVotingPower).toBe(10n); // 1+2+3+4
+
+    // cryptoIndex should have 4 entries keyed by uppercase hex
+    expect(out.cryptoIndex.size).toBe(4);
+    for (const [addrHex, key] of out.cryptoIndex.entries()) {
+      expect(addrHex).toMatch(/^[0-9A-F]{40}$/);
+      expect(key.type).toBe("public");
+      expect((key.algorithm as EcKeyAlgorithm).name).toBe("Ed25519");
+      expect(key.usages).toEqual(["verify"]);
+      expect(key.extractable).toBe(false);
+    }
+
+    // proto validators should have bytes + bigint fields
+    for (const pv of out.proto.validators) {
+      expect(pv.address instanceof Uint8Array).toBe(true);
+      expect(pv.address.length).toBe(20);
+      expect(typeof pv.votingPower).toBe("bigint");
+      expect(pv.votingPower).toBeGreaterThanOrEqual(1n);
+      expect(pv.pubKeyType).toBe("ed25519");
+      expect(pv.pubKeyBytes instanceof Uint8Array).toBe(true);
+      expect(pv.pubKeyBytes.length).toBe(32);
     }
   });
 
-  it("accepts lowercase input addresses but normalizes to uppercase internally", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(10), 1, {
-      lowercaseAddr: true,
-    });
-    const v2 = await makeValidatorEntry(filledBytes(11), 1, {
-      lowercaseAddr: true,
-    });
+  it("accepts lowercase input addresses but normalizes keys to uppercase in cryptoIndex", async () => {
+    const v1 = await makeValidatorEntry(filledBytes(10), 1, { lowercaseAddr: true });
+    const v2 = await makeValidatorEntry(filledBytes(11), 1, { lowercaseAddr: true });
     const resp = makeResponse([v1, v2], "99");
 
-    const set = await importValidators(resp);
-    expect(set.validators[0].address).toBe(
-      set.validators[0].address.toUpperCase(),
-    );
-    expect(set.validators[1].address).toBe(
-      set.validators[1].address.toUpperCase(),
-    );
+    const out = await importValidatorSetProto(resp);
+
+    // Derive expected addresses (uppercase) from pubkeys and confirm present in cryptoIndex
+    for (const e of resp.result.validators) {
+      const pubRaw = base64ToUint8Array(e.pub_key.value);
+      const derived = Uint8ArrayToHex((await sha256(pubRaw)).slice(0, 20)).toUpperCase();
+      expect(out.cryptoIndex.has(derived)).toBe(true);
+    }
   });
 
   it("throws when the response paginates (count !== total)", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const resp = makeResponse([v1, v2], "1", /*count*/ "2", /*total*/ "3");
-    await expect(importValidators(resp)).rejects.toThrow(/must not paginate/i);
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/must not paginate/i);
   });
 
   it("throws when validators.length !== count (mismatch)", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
-    // Your current implementation only catches this at the final length check.
     const resp = makeResponse([v1, v2], "1", /*count*/ "3", /*total*/ "3");
-    await expect(importValidators(resp)).rejects.toThrow(
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(
       /Failed to parse enough validators/i,
     );
   });
@@ -117,11 +134,8 @@ describe("importValidators (browser crypto)", () => {
   it("throws on missing block height", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const resp = makeResponse([v1], ""); // empty height
-    // Manually blank the height to trigger the check exactly
     (resp.result as any).block_height = "";
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Missing block height/,
-    );
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/Missing block height/);
   });
 
   it("throws on invalid address (wrong length/format)", async () => {
@@ -129,16 +143,14 @@ describe("importValidators (browser crypto)", () => {
     const good = await makeValidatorEntry(pub, 1);
     const bad = { ...good, address: good.address.slice(0, 39) }; // 39 chars
     const resp = makeResponse([bad, good], "7");
-    await expect(importValidators(resp)).rejects.toThrow(/address.*40/i);
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/address.*40/i);
   });
 
   it("throws on invalid pub_key object", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const bad = { ...v1, pub_key: { type: "tendermint/PubKeyEd25519" } }; // missing value
     const resp = makeResponse([bad, v1], "7");
-    await expect(importValidators(resp)).rejects.toThrow(
-      /key object is invalid/i,
-    );
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/key object is invalid/i);
   });
 
   it("throws on unsupported pub_key.type", async () => {
@@ -147,7 +159,7 @@ describe("importValidators (browser crypto)", () => {
     });
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const resp = makeResponse([bad, v2], "7");
-    await expect(importValidators(resp)).rejects.toThrow(/unsupported/i);
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/unsupported/i);
   });
 
   it("throws on wrong pubkey length (31 bytes)", async () => {
@@ -155,46 +167,40 @@ describe("importValidators (browser crypto)", () => {
     const vBad = await makeValidatorEntry(pub31, 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const resp = makeResponse([vBad, v2], "7");
-    // Real SubtleCrypto.importKey will reject for invalid length
-    await expect(importValidators(resp)).rejects.toThrow();
+    await expect(importValidatorSetProto(resp)).rejects.toThrow();
   });
 
   it("throws on address/pubkey mismatch", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
-    // Corrupt v2's address to mismatch
     (v2 as any).address = v1.address; // duplicate/mismatch
     const resp = makeResponse([v1, v2], "7");
-    await expect(importValidators(resp)).rejects.toThrow(
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(
       /does not match its public key|mismatch/i,
     );
   });
 
   it("throws on duplicate address", async () => {
-    // Use the exact same key twice
     const pub = filledBytes(9);
     const v1 = await makeValidatorEntry(pub, 1);
     const v2 = await makeValidatorEntry(pub, 1); // same address
     const resp = makeResponse([v1, v2], "7");
-    await expect(importValidators(resp)).rejects.toThrow(/Duplicate entry/i);
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/Duplicate entry/i);
   });
 
   it("throws on invalid voting power (non-integer / <1)", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 0); // invalid: zero
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const resp = makeResponse([v1, v2], "7");
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Invalid voting power/i,
-    );
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(/Invalid voting power/i);
   });
 
   it("throws when final length check fails (validators.length !== total)", async () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const v3 = await makeValidatorEntry(filledBytes(3), 1);
-    // Say total is 4 but only 3 entries provided
     const resp = makeResponse([v1, v2, v3], "7", /*count*/ "4", /*total*/ "4");
-    await expect(importValidators(resp)).rejects.toThrow(
+    await expect(importValidatorSetProto(resp)).rejects.toThrow(
       /Failed to parse enough validators/i,
     );
   });
@@ -205,38 +211,43 @@ describe("validators fixture:", () => {
     const resp = validatorsFixture as unknown as ValidatorResponse;
 
     for (const entry of resp.result.validators) {
-      // decode pubkey using your helper
       const pubRaw = base64ToUint8Array(entry.pub_key.value);
-      // Tendermint address = first 20 bytes of SHA-256(pubkey), hex, UPPERCASE
       const derived = Uint8ArrayToHex((await sha256(pubRaw)).slice(0, 20)).toUpperCase();
-
       expect(derived).toBe(entry.address.toUpperCase());
     }
   });
 
-  it("imports Ed25519 public keys with correct WebCrypto attributes", async () => {
+  it("imports Ed25519 keys and fills proto validators correctly", async () => {
     const resp = validatorsFixture as unknown as ValidatorResponse;
 
-    const set = await importValidators(resp);
+    const out = await importValidatorSetProto(resp);
 
-    // sanity
-    expect(set.height).toBe(12n);
-    expect(set.validators).toHaveLength(4);
-    expect(set.totalPower).toBe(4);
+    expect(out.height).toBe(12n);
+    expect(out.proto.validators).toHaveLength(4);
+    expect(out.proto.totalVotingPower).toBe(4n);
 
-    for (const v of set.validators) {
-      const key = v.key as CryptoKey;
-
-      // correct key metadata
+    // cryptoIndex: correct WebCrypto attributes
+    for (const key of out.cryptoIndex.values()) {
       expect(key.type).toBe("public");
       expect((key.algorithm as EcKeyAlgorithm).name).toBe("Ed25519");
       expect(key.usages).toEqual(["verify"]);
       expect(key.extractable).toBe(false);
+      await expect(crypto.subtle.exportKey("raw", key)).rejects.toBeTruthy();
+    }
 
-      // non-extractable means exportKey should reject/throw
-      await expect(
-        crypto.subtle.exportKey("raw", key)
-      ).rejects.toBeTruthy();
+    // proto validators content matches derived bytes
+    for (const e of resp.result.validators) {
+      const pubRaw = base64ToUint8Array(e.pub_key.value);
+      const sha = await sha256(pubRaw);
+      const addr20 = sha.slice(0, 20);
+
+      const match = out.proto.validators.find(
+        (pv) => Uint8ArrayToHex(pv.address) === Uint8ArrayToHex(addr20)
+      );
+      expect(match).toBeTruthy();
+      expect(match!.pubKeyType).toBe("ed25519");
+      expect(Uint8ArrayToHex(match!.pubKeyBytes)).toBe(Uint8ArrayToHex(pubRaw));
+      expect(match!.votingPower).toBe(1n);
     }
   });
 });

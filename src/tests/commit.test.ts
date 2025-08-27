@@ -1,3 +1,4 @@
+// src/tests/commit.test.ts
 import { describe, expect, it } from "vitest";
 import { importCommit } from "../commit";
 import type { CommitResponse } from "../types";
@@ -19,49 +20,49 @@ function mutateHex(h: string, byteIndex = 0, newByte = 0x00) {
 }
 
 describe("importCommit: happy path (fixture)", () => {
-  it("parses a valid signed_header into ProtoSignedHeader", () => {
+  it("parses a valid signed_header into SignedHeader (ts-proto, useDate=false)", () => {
     const resp = commitFixture as unknown as CommitResponse;
 
     const sh = importCommit(resp);
 
     // header basics
-    expect(sh.header.chainId).toBe("chain-ORcSeX");
-    expect(sh.header.height).toBe(12n);
-    expect(sh.header.version?.block).toBe(11n);
-    expect(sh.header.version?.app).toBe(1n);
-    expect(sh.header.time).toEqual({
+    expect(sh.header!.chainId).toBe("chain-ORcSeX");
+    expect(sh.header!.height).toBe(12n);
+    expect(sh.header!.version?.block).toBe(11n);
+    expect(sh.header!.version?.app).toBe(1n);
+    expect(sh.header!.time).toEqual({
       seconds: expect.any(BigInt),
       nanos: expect.any(Number),
     });
 
-    // 32-byte hashes
-    expect(sh.header.lastCommitHash.length).toBe(32);
-    expect(sh.header.dataHash.length).toBe(32);
-    expect(sh.header.validatorsHash.length).toBe(32);
-    expect(sh.header.nextValidatorsHash.length).toBe(32);
-    expect(sh.header.consensusHash.length).toBe(32);
-    expect(sh.header.appHash.length).toBe(8);
-    expect(sh.header.lastResultsHash.length).toBe(32);
-    expect(sh.header.evidenceHash.length).toBe(32);
+    // 32-byte hashes (app hash can be any length; in the fixture it's 8 bytes)
+    expect(sh.header!.lastCommitHash.length).toBe(32);
+    expect(sh.header!.dataHash.length).toBe(32);
+    expect(sh.header!.validatorsHash.length).toBe(32);
+    expect(sh.header!.nextValidatorsHash.length).toBe(32);
+    expect(sh.header!.consensusHash.length).toBe(32);
+    expect(sh.header!.appHash.length).toBe(8);
+    expect(sh.header!.lastResultsHash.length).toBe(32);
+    expect(sh.header!.evidenceHash.length).toBe(32);
 
     // proposer 20 bytes
-    expect(sh.header.proposerAddress.length).toBe(20);
+    expect(sh.header!.proposerAddress.length).toBe(20);
 
     // last_block_id + commit.block_id parts
-    expect(sh.header.lastBlockId.hash.length).toBe(32);
-    expect(sh.header.lastBlockId.partSetHeader.hash.length).toBe(32);
-    expect(typeof sh.header.lastBlockId.partSetHeader.total).toBe("number");
+    expect(sh.header!.lastBlockId!.hash.length).toBe(32);
+    expect(sh.header!.lastBlockId!.partSetHeader!.hash.length).toBe(32);
+    expect(typeof sh.header!.lastBlockId!.partSetHeader!.total).toBe("number");
 
-    expect(sh.commit.height).toBe(12n);
-    expect(sh.commit.round).toBe(0);
-    expect(sh.commit.blockId.hash.length).toBe(32);
-    expect(sh.commit.blockId.partSetHeader.hash.length).toBe(32);
-    expect(sh.commit.signatures.length).toBeGreaterThan(0);
+    expect(sh.commit!.height).toBe(12n);
+    expect(sh.commit!.round).toBe(0);
+    expect(sh.commit!.blockId!.hash.length).toBe(32);
+    expect(sh.commit!.blockId!.partSetHeader!.hash.length).toBe(32);
+    expect(sh.commit!.signatures.length).toBeGreaterThan(0);
 
-    for (const s of sh.commit.signatures) {
+    for (const s of sh.commit!.signatures) {
       expect(typeof s.blockIdFlag).toBe("number");
       expect(s.validatorAddress.length).toBe(20);
-      expect(s.signature.length).toBe(64);
+      expect(s.signature.length).toBe(64); // fixture has present signatures
       expect(s.timestamp).toEqual({
         seconds: expect.any(BigInt),
         nanos: expect.any(Number),
@@ -214,17 +215,20 @@ describe("importCommit: validation errors", () => {
     expect(() => importCommit(bad)).toThrow(/validator_address.*20 bytes/);
   });
 
-  it("fails on missing signature", () => {
-    const bad = clone(commitFixture) as any;
-    delete bad.result.signed_header.commit.signatures[0].signature;
-    expect(() => importCommit(bad)).toThrow(/signature missing/);
+  // ⬇️ changed: missing signature is allowed -> becomes empty bytes
+  it("allows missing signature (proto3 bytes -> empty) and sets length to 0", () => {
+    const good = clone(commitFixture) as any;
+    delete good.result.signed_header.commit.signatures[0].signature;
+
+    const sh = importCommit(good as CommitResponse);
+    expect(sh.commit!.signatures[0].signature).toBeInstanceOf(Uint8Array);
+    expect(sh.commit!.signatures[0].signature.length).toBe(0);
   });
 
   it("fails on wrong signature length (not 64 bytes) without Buffer", () => {
     const bad = clone(commitFixture) as any;
     const sigB64: string = bad.result.signed_header.commit.signatures[0].signature;
 
-    // Decode -> slice to 63 bytes -> encode back, purely via helpers
     const sigBytes = base64ToUint8Array(sigB64);
     const shorter = sigBytes.slice(0, 63);
     bad.result.signed_header.commit.signatures[0].signature = Uint8ArrayToBase64(shorter);
@@ -238,7 +242,7 @@ describe("importCommit: validation errors", () => {
     withFrac.result.signed_header.commit.signatures[0].timestamp = "2025-08-18T13:39:11.9Z";
 
     const sh = importCommit(withFrac as CommitResponse);
-    expect(sh.header.time?.nanos).toBe(618857123);
-    expect(sh.commit.signatures[0].timestamp?.nanos).toBe(900000000);
+    expect(sh.header!.time?.nanos).toBe(618857123);
+    expect(sh.commit!.signatures[0].timestamp?.nanos).toBe(900000000);
   });
 });
