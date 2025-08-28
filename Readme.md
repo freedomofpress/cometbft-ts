@@ -20,10 +20,9 @@ const result = await verifyCommit(sh, vset, cryptoIndex);
 
 ## Tests
 
-Paste your test output here. For example:
-
 ```bash
 $ npm run coverage
+
 > cometbft@0.1.0 coverage
 > vitest run --coverage
 
