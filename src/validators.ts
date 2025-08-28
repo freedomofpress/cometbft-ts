@@ -2,7 +2,7 @@ import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
 import type { ValidatorResponse } from "./types";
 import { Validator, ValidatorSet } from "./proto/cometbft/types/v1/validator";
 
-export async function importValidatorSetProto(
+export async function importValidators(
   resp: ValidatorResponse
 ): Promise<{
   height: bigint;

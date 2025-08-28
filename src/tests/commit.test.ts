@@ -215,7 +215,35 @@ describe("importCommit: validation errors", () => {
     expect(() => importCommit(bad)).toThrow(/validator_address.*20 bytes/);
   });
 
-  // ⬇️ changed: missing signature is allowed -> becomes empty bytes
+    it("defaults header.version.{block,app} to 0n when version is missing", () => {
+    const resp = clone(commitFixture) as any;
+    delete resp.result.signed_header.header.version;
+
+    const sh = importCommit(resp as CommitResponse);
+
+    expect(sh.header!.version?.block).toBe(0n);
+    expect(sh.header!.version?.app).toBe(0n);
+  });
+
+  it("parses header.time without fractional seconds (nanos=0)", () => {
+    const resp = clone(commitFixture) as any;
+    resp.result.signed_header.header.time = "2025-08-18T13:39:10Z"; // no .fraction
+
+    const sh = importCommit(resp as CommitResponse);
+
+    expect(sh.header!.time?.nanos).toBe(0);
+    expect(typeof sh.header!.time?.seconds).toBe("bigint");
+  });
+
+  it("allows a signature with no timestamp (kept undefined)", () => {
+    const resp = clone(commitFixture) as any;
+    delete resp.result.signed_header.commit.signatures[0].timestamp;
+
+    const sh = importCommit(resp as CommitResponse);
+
+    expect(sh.commit!.signatures[0].timestamp).toBeUndefined();
+  });
+
   it("allows missing signature (proto3 bytes -> empty) and sets length to 0", () => {
     const good = clone(commitFixture) as any;
     delete good.result.signed_header.commit.signatures[0].signature;
