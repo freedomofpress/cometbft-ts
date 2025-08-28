@@ -1,10 +1,8 @@
 import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
-import type { ValidatorResponse } from "./types";
 import { Validator, ValidatorSet } from "./proto/cometbft/types/v1/validator";
+import type { ValidatorResponse } from "./types";
 
-export async function importValidators(
-  resp: ValidatorResponse
-): Promise<{
+export async function importValidators(resp: ValidatorResponse): Promise<{
   height: bigint;
   proto: ValidatorSet;
   cryptoIndex: Map<string, CryptoKey>;
@@ -35,14 +33,16 @@ export async function importValidators(
   for (const v of resp.result.validators) {
     if (!v.address || v.address.length !== 40) {
       throw new Error(
-        `Validator address must be 40 HEX digits, provided: ${v.address}`
+        `Validator address must be 40 HEX digits, provided: ${v.address}`,
       );
     }
     if (!v.pub_key?.type || !v.pub_key?.value) {
       throw new Error("Validator key object is invalid");
     }
     if (v.pub_key.type !== "tendermint/PubKeyEd25519") {
-      throw new Error(`Key of type ${v.pub_key.type} is currently unsupported.`);
+      throw new Error(
+        `Key of type ${v.pub_key.type} is currently unsupported.`,
+      );
     }
 
     const rawKey = base64ToUint8Array(v.pub_key.value);
@@ -51,10 +51,12 @@ export async function importValidators(
       new Uint8Array(rawKey),
       { name: "Ed25519" },
       false,
-      ["verify"]
+      ["verify"],
     );
 
-    const sha = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(rawKey)));
+    const sha = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new Uint8Array(rawKey)),
+    );
     const addrHex = Uint8ArrayToHex(sha.slice(0, 20)).toUpperCase();
 
     if (addrHex !== v.address.toUpperCase()) {
@@ -67,7 +69,11 @@ export async function importValidators(
     cryptoIndex.set(addrHex, key);
 
     const powerNum = Number(v.voting_power);
-    if (!Number.isFinite(powerNum) || !Number.isInteger(powerNum) || powerNum < 1) {
+    if (
+      !Number.isFinite(powerNum) ||
+      !Number.isInteger(powerNum) ||
+      powerNum < 1
+    ) {
       throw new Error(`Invalid voting power for ${addrHex}`);
     }
     countedPower += BigInt(powerNum);

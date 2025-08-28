@@ -1,16 +1,16 @@
 // src/lightclient.ts
-import { SignedHeader, SignedMsgType } from "./proto/cometbft/types/v1/types";
+import { Uint8ArrayToHex } from "./encoding";
 import {
-  ValidatorSet as ProtoValidatorSet,
-  Validator as ProtoValidator,
-} from "./proto/cometbft/types/v1/validator";
-import {
-  CanonicalVote,
   CanonicalBlockID,
   CanonicalPartSetHeader,
+  CanonicalVote,
 } from "./proto/cometbft/types/v1/canonical";
+import { SignedHeader, SignedMsgType } from "./proto/cometbft/types/v1/types";
+import {
+  Validator as ProtoValidator,
+  ValidatorSet as ProtoValidatorSet,
+} from "./proto/cometbft/types/v1/validator";
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
-import { Uint8ArrayToHex } from "./encoding";
 
 export type CryptoIndex = Map<string, CryptoKey>;
 
@@ -41,10 +41,10 @@ function makePrecommitSignBytesProto(
 
   const vote: CanonicalVote = {
     type: SignedMsgType.SIGNED_MSG_TYPE_PRECOMMIT,
-    height,        // fixed64
-    round,         // fixed64 (encoder omits 0)
+    height, // fixed64
+    round, // fixed64 (encoder omits 0)
     blockId: bid,
-    timestamp,     // omitted if undefined
+    timestamp, // omitted if undefined
     chainId,
   };
 
@@ -71,7 +71,9 @@ export async function verifyCommit(
   const commit = sh.commit;
 
   if (header.height !== commit.height) {
-    throw new Error(`Header/commit height mismatch: ${header.height} vs ${commit.height}`);
+    throw new Error(
+      `Header/commit height mismatch: ${header.height} vs ${commit.height}`,
+    );
   }
 
   const totalPower = vset?.totalVotingPower ?? 0n;
@@ -86,18 +88,23 @@ export async function verifyCommit(
   const setByAddrHex = new Map<string, ProtoValidator>();
   for (const v of vset.validators) {
     const hex = Uint8ArrayToHex(v.address).toUpperCase();
-    if (setByAddrHex.has(hex)) throw new Error(`Duplicate validator address in set: ${hex}`);
+    if (setByAddrHex.has(hex))
+      throw new Error(`Duplicate validator address in set: ${hex}`);
     setByAddrHex.set(hex, v);
   }
 
   if (!commit.blockId) throw new Error("Commit missing BlockID");
   const bid = commit.blockId;
-  if (!bid.hash || bid.hash.length === 0) throw new Error("Commit BlockID hash is missing");
+  if (!bid.hash || bid.hash.length === 0)
+    throw new Error("Commit BlockID hash is missing");
   if (!bid.partSetHeader) throw new Error("Commit PartSetHeader is missing");
   if (!bid.partSetHeader.hash || bid.partSetHeader.hash.length === 0) {
     throw new Error("Commit PartSetHeader hash is missing");
   }
-  if (!Number.isInteger(bid.partSetHeader.total) || bid.partSetHeader.total < 0) {
+  if (
+    !Number.isInteger(bid.partSetHeader.total) ||
+    bid.partSetHeader.total < 0
+  ) {
     throw new Error("Commit PartSetHeader total is invalid");
   }
 
@@ -145,7 +152,7 @@ export async function verifyCommit(
       s.timestamp,
     );
 
-    let key = cryptoIndex.get(addrHex);
+    const key = cryptoIndex.get(addrHex);
     if (!key) {
       invalid.push(addrHex);
       continue;

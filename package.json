@@ -9,7 +9,7 @@
     "build": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "lint": "npx eslint . --fix && npx prettier --write ."
+    "lint": "npx eslint --ignore-pattern '**/*.test.ts' . --fix && npx prettier --write ."
   },
   "keywords": [
     "cometbft",

@@ -6,11 +6,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text"],
       include: ["src/**/*.ts"],
-      exclude: [
-        "node_modules/**",
-        "dist/**",
-        "src/proto/**",
-      ],
+      exclude: ["node_modules/**", "dist/**", "src/proto/**"],
     },
   },
 });

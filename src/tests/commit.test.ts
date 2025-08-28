@@ -1,22 +1,13 @@
-// src/tests/commit.test.ts
 import { describe, expect, it } from "vitest";
+
 import { importCommit } from "../commit";
+import { base64ToUint8Array, Uint8ArrayToBase64 } from "../encoding";
 import type { CommitResponse } from "../types";
 import commitFixture from "./fixtures/commit-12.json";
-import { base64ToUint8Array, Uint8ArrayToBase64 } from "../encoding";
 
 // Deep-clone plain JSON-like objects
 function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x));
-}
-
-// Mutate a hex string by changing one byte (for negative cases)
-function mutateHex(h: string, byteIndex = 0, newByte = 0x00) {
-  const pairs = h.match(/../g) ?? [];
-  if (pairs.length === 0) return h;
-  const i = Math.min(byteIndex, pairs.length - 1);
-  pairs[i] = newByte.toString(16).padStart(2, "0").toUpperCase();
-  return pairs.join("");
 }
 
 describe("importCommit: happy path (fixture)", () => {
@@ -73,7 +64,11 @@ describe("importCommit: happy path (fixture)", () => {
 
 describe("importCommit: validation errors", () => {
   it("fails on missing signed_header", () => {
-    const bad = { jsonrpc: "2.0", id: -1, result: {} } as unknown as CommitResponse;
+    const bad = {
+      jsonrpc: "2.0",
+      id: -1,
+      result: {},
+    } as unknown as CommitResponse;
     expect(() => importCommit(bad)).toThrow(/Missing signed_header/);
   });
 
@@ -126,11 +121,15 @@ describe("importCommit: validation errors", () => {
   it("fails on bad last_block_id.parts.total (negative / non-integer)", () => {
     const bad1 = clone(commitFixture) as any;
     bad1.result.signed_header.header.last_block_id.parts.total = -1;
-    expect(() => importCommit(bad1)).toThrow(/Invalid last_block_id\.parts\.total/);
+    expect(() => importCommit(bad1)).toThrow(
+      /Invalid last_block_id\.parts\.total/,
+    );
 
     const bad2 = clone(commitFixture) as any;
     bad2.result.signed_header.header.last_block_id.parts.total = 1.2;
-    expect(() => importCommit(bad2)).toThrow(/Invalid last_block_id\.parts\.total/);
+    expect(() => importCommit(bad2)).toThrow(
+      /Invalid last_block_id\.parts\.total/,
+    );
   });
 
   it("fails on malformed header hash lengths (32 bytes expected)", () => {
@@ -147,9 +146,12 @@ describe("importCommit: validation errors", () => {
     for (const f of fields) {
       const bad = clone(commitFixture) as any;
       // Make hex too short (trim 2 chars -> 31 bytes)
-      bad.result.signed_header.header[f] =
-        bad.result.signed_header.header[f].slice(0, -2);
-      expect(() => importCommit(bad)).toThrow(new RegExp(`${f.replace(/_/g, "\\_")}`));
+      bad.result.signed_header.header[f] = bad.result.signed_header.header[
+        f
+      ].slice(0, -2);
+      expect(() => importCommit(bad)).toThrow(
+        new RegExp(`${f.replace(/_/g, "\\_")}`),
+      );
     }
   });
 
@@ -175,7 +177,9 @@ describe("importCommit: validation errors", () => {
     const bad = clone(commitFixture) as any;
     bad.result.signed_header.header.proposer_address =
       bad.result.signed_header.header.proposer_address.slice(0, 38); // 19 bytes
-    expect(() => importCommit(bad)).toThrow(/proposer_address must be 20 bytes/);
+    expect(() => importCommit(bad)).toThrow(
+      /proposer_address must be 20 bytes/,
+    );
   });
 
   it("fails on invalid commit.block_id (missing parts)", () => {
@@ -187,7 +191,9 @@ describe("importCommit: validation errors", () => {
   it("fails on bad commit.block_id.parts.total", () => {
     const bad = clone(commitFixture) as any;
     bad.result.signed_header.commit.block_id.parts.total = -1;
-    expect(() => importCommit(bad)).toThrow(/Invalid commit\.block_id\.parts\.total/);
+    expect(() => importCommit(bad)).toThrow(
+      /Invalid commit\.block_id\.parts\.total/,
+    );
   });
 
   it("fails when commit has no signatures", () => {
@@ -211,11 +217,14 @@ describe("importCommit: validation errors", () => {
   it("fails on short validator_address (hex < 40 chars)", () => {
     const bad = clone(commitFixture) as any;
     bad.result.signed_header.commit.signatures[0].validator_address =
-      bad.result.signed_header.commit.signatures[0].validator_address.slice(0, 38);
+      bad.result.signed_header.commit.signatures[0].validator_address.slice(
+        0,
+        38,
+      );
     expect(() => importCommit(bad)).toThrow(/validator_address.*20 bytes/);
   });
 
-    it("defaults header.version.{block,app} to 0n when version is missing", () => {
+  it("defaults header.version.{block,app} to 0n when version is missing", () => {
     const resp = clone(commitFixture) as any;
     delete resp.result.signed_header.header.version;
 
@@ -255,19 +264,23 @@ describe("importCommit: validation errors", () => {
 
   it("fails on wrong signature length (not 64 bytes) without Buffer", () => {
     const bad = clone(commitFixture) as any;
-    const sigB64: string = bad.result.signed_header.commit.signatures[0].signature;
+    const sigB64: string =
+      bad.result.signed_header.commit.signatures[0].signature;
 
     const sigBytes = base64ToUint8Array(sigB64);
     const shorter = sigBytes.slice(0, 63);
-    bad.result.signed_header.commit.signatures[0].signature = Uint8ArrayToBase64(shorter);
+    bad.result.signed_header.commit.signatures[0].signature =
+      Uint8ArrayToBase64(shorter);
 
     expect(() => importCommit(bad)).toThrow(/signature.*64 bytes/);
   });
 
   it("parses timestamps with fractional seconds (nano padding/truncation)", () => {
     const withFrac = clone(commitFixture) as any;
-    withFrac.result.signed_header.header.time = "2025-08-18T13:39:10.618857123Z";
-    withFrac.result.signed_header.commit.signatures[0].timestamp = "2025-08-18T13:39:11.9Z";
+    withFrac.result.signed_header.header.time =
+      "2025-08-18T13:39:10.618857123Z";
+    withFrac.result.signed_header.commit.signatures[0].timestamp =
+      "2025-08-18T13:39:11.9Z";
 
     const sh = importCommit(withFrac as CommitResponse);
     expect(sh.header!.time?.nanos).toBe(618857123);

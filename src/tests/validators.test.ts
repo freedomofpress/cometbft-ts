@@ -1,14 +1,12 @@
-// src/tests/validators.test.ts
 import { describe, expect, it } from "vitest";
 
 import {
+  base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
-  base64ToUint8Array,
 } from "../encoding";
 import type { ValidatorResponse } from "../types";
 import { importValidators } from "../validators";
-
 import validatorsFixture from "./fixtures/validators-12.json";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -101,8 +99,12 @@ describe("importValidators (browser crypto)", () => {
   });
 
   it("accepts lowercase input addresses but normalizes keys to uppercase in cryptoIndex", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(10), 1, { lowercaseAddr: true });
-    const v2 = await makeValidatorEntry(filledBytes(11), 1, { lowercaseAddr: true });
+    const v1 = await makeValidatorEntry(filledBytes(10), 1, {
+      lowercaseAddr: true,
+    });
+    const v2 = await makeValidatorEntry(filledBytes(11), 1, {
+      lowercaseAddr: true,
+    });
     const resp = makeResponse([v1, v2], "99");
 
     const out = await importValidators(resp);
@@ -110,7 +112,9 @@ describe("importValidators (browser crypto)", () => {
     // Derive expected addresses (uppercase) from pubkeys and confirm present in cryptoIndex
     for (const e of resp.result.validators) {
       const pubRaw = base64ToUint8Array(e.pub_key.value);
-      const derived = Uint8ArrayToHex((await sha256(pubRaw)).slice(0, 20)).toUpperCase();
+      const derived = Uint8ArrayToHex(
+        (await sha256(pubRaw)).slice(0, 20),
+      ).toUpperCase();
       expect(out.cryptoIndex.has(derived)).toBe(true);
     }
   });
@@ -137,7 +141,7 @@ describe("importValidators (browser crypto)", () => {
       id: -1,
       result: {
         block_height: "12",
-        validators: [],   // <-- empty
+        validators: [], // <-- empty
         count: "0",
         total: "0",
       },
@@ -169,7 +173,9 @@ describe("importValidators (browser crypto)", () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const resp = makeResponse([v1], ""); // empty height
     (resp.result as any).block_height = "";
-    await expect(importValidators(resp)).rejects.toThrow(/Missing block height/);
+    await expect(importValidators(resp)).rejects.toThrow(
+      /Missing block height/,
+    );
   });
 
   it("throws on invalid address (wrong length/format)", async () => {
@@ -184,7 +190,9 @@ describe("importValidators (browser crypto)", () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 1);
     const bad = { ...v1, pub_key: { type: "tendermint/PubKeyEd25519" } }; // missing value
     const resp = makeResponse([bad, v1], "7");
-    await expect(importValidators(resp)).rejects.toThrow(/key object is invalid/i);
+    await expect(importValidators(resp)).rejects.toThrow(
+      /key object is invalid/i,
+    );
   });
 
   it("throws on unsupported pub_key.type", async () => {
@@ -226,7 +234,9 @@ describe("importValidators (browser crypto)", () => {
     const v1 = await makeValidatorEntry(filledBytes(1), 0); // invalid: zero
     const v2 = await makeValidatorEntry(filledBytes(2), 1);
     const resp = makeResponse([v1, v2], "7");
-    await expect(importValidators(resp)).rejects.toThrow(/Invalid voting power/i);
+    await expect(importValidators(resp)).rejects.toThrow(
+      /Invalid voting power/i,
+    );
   });
 
   it("throws when final length check fails (validators.length !== total)", async () => {
@@ -246,7 +256,9 @@ describe("validators fixture:", () => {
 
     for (const entry of resp.result.validators) {
       const pubRaw = base64ToUint8Array(entry.pub_key.value);
-      const derived = Uint8ArrayToHex((await sha256(pubRaw)).slice(0, 20)).toUpperCase();
+      const derived = Uint8ArrayToHex(
+        (await sha256(pubRaw)).slice(0, 20),
+      ).toUpperCase();
       expect(derived).toBe(entry.address.toUpperCase());
     }
   });
@@ -276,7 +288,7 @@ describe("validators fixture:", () => {
       const addr20 = sha.slice(0, 20);
 
       const match = out.proto.validators.find(
-        (pv) => Uint8ArrayToHex(pv.address) === Uint8ArrayToHex(addr20)
+        (pv) => Uint8ArrayToHex(pv.address) === Uint8ArrayToHex(addr20),
       );
       expect(match).toBeTruthy();
       expect(match!.pubKeyType).toBe("ed25519");

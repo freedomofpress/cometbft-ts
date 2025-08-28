@@ -1,10 +1,16 @@
 // src/commit.ts
-import { hexToUint8Array, base64ToUint8Array } from "./encoding";
-import type { CommitResponse } from "./types";
-import { SignedHeader, BlockID, CommitSig, Header, Commit } from "./proto/cometbft/types/v1/types";
+import { base64ToUint8Array, hexToUint8Array } from "./encoding";
+import {
+  BlockID,
+  Commit,
+  CommitSig,
+  Header,
+  SignedHeader,
+} from "./proto/cometbft/types/v1/types";
+import { BlockIDFlag } from "./proto/cometbft/types/v1/validator";
 import { Consensus } from "./proto/cometbft/version/v1/types";
-import { BlockIDFlag } from "./proto/cometbft/types/v1/validator"
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
+import type { CommitResponse } from "./types";
 
 // ---- helpers ----
 function assertLen(name: string, u8: Uint8Array, expect: number) {
@@ -44,7 +50,8 @@ export function importCommit(resp: CommitResponse): SignedHeader {
 
   // Heights
   if (!h.height) throw new Error("Missing header.height");
-  if (c.height == null || c.height === "") throw new Error("Missing commit.height");
+  if (c.height == null || c.height === "")
+    throw new Error("Missing commit.height");
   const headerHeight = BigInt(h.height);
   const commitHeight = BigInt(c.height);
   if (headerHeight !== commitHeight) {
@@ -52,14 +59,18 @@ export function importCommit(resp: CommitResponse): SignedHeader {
   }
 
   // Round
-  if (typeof c.round !== "number" || c.round < 0 || !Number.isInteger(c.round)) {
+  if (
+    typeof c.round !== "number" ||
+    c.round < 0 ||
+    !Number.isInteger(c.round)
+  ) {
     throw new Error("Invalid commit.round");
   }
 
   // version (optional)
   const version: Consensus = {
     block: h.version?.block ? BigInt(h.version.block) : 0n,
-    app:   h.version?.app   ? BigInt(h.version.app)   : 0n,
+    app: h.version?.app ? BigInt(h.version.app) : 0n,
   };
 
   // last_block_id
@@ -77,19 +88,31 @@ export function importCommit(resp: CommitResponse): SignedHeader {
       hash: lastBlockPartsHash,
     },
   };
-  if (!lastBlockId.partSetHeader || !lastBlockId.partSetHeader.total || !Number.isInteger(lastBlockId.partSetHeader.total) || lastBlockId.partSetHeader.total < 0) {
+  if (
+    !lastBlockId.partSetHeader ||
+    !lastBlockId.partSetHeader.total ||
+    !Number.isInteger(lastBlockId.partSetHeader.total) ||
+    lastBlockId.partSetHeader.total < 0
+  ) {
     throw new Error("Invalid last_block_id.parts.total");
   }
 
   // Hash fields (32 bytes unless app hash, which is app-defined length)
-  const lastCommitHash   = hexToUint8Array(h.last_commit_hash);   assertLen("last_commit_hash", lastCommitHash, 32);
-  const dataHash         = hexToUint8Array(h.data_hash);          assertLen("data_hash", dataHash, 32);
-  const validatorsHash   = hexToUint8Array(h.validators_hash);    assertLen("validators_hash", validatorsHash, 32);
-  const nextValidatorsHash = hexToUint8Array(h.next_validators_hash); assertLen("next_validators_hash", nextValidatorsHash, 32);
-  const consensusHash    = hexToUint8Array(h.consensus_hash);     assertLen("consensus_hash", consensusHash, 32);
-  const appHash          = hexToUint8Array(h.app_hash);           // variable length accepted
-  const lastResultsHash  = hexToUint8Array(h.last_results_hash);  assertLen("last_results_hash", lastResultsHash, 32);
-  const evidenceHash     = hexToUint8Array(h.evidence_hash);      assertLen("evidence_hash", evidenceHash, 32);
+  const lastCommitHash = hexToUint8Array(h.last_commit_hash);
+  assertLen("last_commit_hash", lastCommitHash, 32);
+  const dataHash = hexToUint8Array(h.data_hash);
+  assertLen("data_hash", dataHash, 32);
+  const validatorsHash = hexToUint8Array(h.validators_hash);
+  assertLen("validators_hash", validatorsHash, 32);
+  const nextValidatorsHash = hexToUint8Array(h.next_validators_hash);
+  assertLen("next_validators_hash", nextValidatorsHash, 32);
+  const consensusHash = hexToUint8Array(h.consensus_hash);
+  assertLen("consensus_hash", consensusHash, 32);
+  const appHash = hexToUint8Array(h.app_hash); // variable length accepted
+  const lastResultsHash = hexToUint8Array(h.last_results_hash);
+  assertLen("last_results_hash", lastResultsHash, 32);
+  const evidenceHash = hexToUint8Array(h.evidence_hash);
+  assertLen("evidence_hash", evidenceHash, 32);
 
   // proposer_address (20 bytes)
   if (!h.proposer_address) throw new Error("Missing proposer_address");
@@ -115,7 +138,12 @@ export function importCommit(resp: CommitResponse): SignedHeader {
       hash: commitPartsHash,
     },
   };
-  if (!commitBlockId || !commitBlockId.partSetHeader || !Number.isInteger(commitBlockId.partSetHeader.total) || commitBlockId.partSetHeader.total < 0) {
+  if (
+    !commitBlockId ||
+    !commitBlockId.partSetHeader ||
+    !Number.isInteger(commitBlockId.partSetHeader.total) ||
+    commitBlockId.partSetHeader.total < 0
+  ) {
     throw new Error("Invalid commit.block_id.parts.total");
   }
 
@@ -134,7 +162,9 @@ export function importCommit(resp: CommitResponse): SignedHeader {
     assertLen(`signatures[${i}].validator_address`, validatorAddress, 20);
 
     // bytes fields in proto3 are NOT optional -> use empty Uint8Array when absent
-    const sigBytes = s.signature ? base64ToUint8Array(s.signature) : new Uint8Array(0);
+    const sigBytes = s.signature
+      ? base64ToUint8Array(s.signature)
+      : new Uint8Array(0);
     if (sigBytes.length !== 0) {
       assertLen(`signatures[${i}].signature`, sigBytes, 64); // Ed25519
     }
@@ -144,7 +174,7 @@ export function importCommit(resp: CommitResponse): SignedHeader {
     return {
       blockIdFlag: s.block_id_flag as BlockIDFlag,
       validatorAddress,
-      timestamp: ts,       // PbTimestamp | undefined (useDate=false)
+      timestamp: ts, // PbTimestamp | undefined (useDate=false)
       signature: sigBytes, // always Uint8Array (maybe length 0)
     };
   });
