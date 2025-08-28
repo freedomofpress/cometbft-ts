@@ -1,4 +1,3 @@
-# .github/workflows/auto-bump-deps.yml
 name: Auto Bump Dependencies
 
 on:
@@ -29,6 +28,23 @@ jobs:
         run: |
           ncu -u --peer
           # ncu -u --reject '/^typescript$/'
+
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # buf_token: ${{ secrets.BUF_TOKEN }} # uncomment if you need auth to buf.build
+
+      - name: Cache Buf modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/buf
+          key: ${{ runner.os }}-buf-${{ hashFiles('buf.yaml', 'buf.gen.yaml', 'buf.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buf-
+
+      - name: Generate protobufs
+        run: npm run proto:gen
 
       - name: Install updated deps
         run: npm install
