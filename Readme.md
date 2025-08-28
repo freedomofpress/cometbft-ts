@@ -2,7 +2,7 @@
 
 *Note: this library has not been audited, thus its security has not been independently verified.*
 
-`cometbft-ts` is a small TypeScript library for verifying CometBFT commits in the browser. It takes the JSON you get from CometBFT ABCI/RPC for a `commit` and its `validators`, constructs canonical sign-bytes via protobuf, and verifies Ed25519 signatures and >2/3 quorum. It is verification-only and throws on any cryptographic or format error. It uses the native [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API). The library was developed as part of **WEBCAT** and is **not audited**.
+`cometbft-ts` is a small TypeScript library for verifying CometBFT commits in the browser. It takes the JSON you get from CometBFT ABCI/RPC for a `commit` and its `validators`, constructs canonical sign-bytes via protobuf, and verifies Ed25519 signatures and >2/3 quorum. It is verification-only and throws on any cryptographic or format error. It uses the native [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API). The library is developed as part of [WEBCAT](https://github.com/freedomofpress/webcat) and is **not audited**.
 
 ## Usage
 
