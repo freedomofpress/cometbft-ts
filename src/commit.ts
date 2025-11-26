@@ -10,7 +10,7 @@ import {
 import { BlockIDFlag } from "./proto/cometbft/types/v1/validator";
 import { Consensus } from "./proto/cometbft/version/v1/types";
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
-import type { CommitResponse } from "./types";
+import type { CommitJson } from "./types";
 
 // ---- helpers ----
 function assertLen(name: string, u8: Uint8Array, expect: number) {
@@ -37,11 +37,11 @@ function parseRFC3339ToTimestamp(s: string): PbTimestamp {
  * Parse and validate a /commit JSON and return a ts-proto SignedHeader
  * (cometbft.types.v1.SignedHeader).
  */
-export function importCommit(resp: CommitResponse): SignedHeader {
-  if (!resp || !resp.result || !resp.result.signed_header) {
-    throw new Error("Missing signed_header in response");
-  }
-  const sh = resp.result.signed_header;
+export function importCommit(resp: CommitJson): SignedHeader {
+  const sh = resp.signed_header;
+
+  if (!sh) throw new Error("Missing signed_header");
+
   const h = sh.header;
   const c = sh.commit;
 
