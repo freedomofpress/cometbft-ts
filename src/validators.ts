@@ -53,7 +53,7 @@ export async function importValidators(resp: ValidatorJson): Promise<{
     seen.add(addrHex);
     cryptoIndex.set(addrHex, key);
 
-    const powerNum = Number(v.voting_power);
+    const powerNum = Number(v.voting_power) || Number(v.power);
     if (
       !Number.isFinite(powerNum) ||
       !Number.isInteger(powerNum) ||

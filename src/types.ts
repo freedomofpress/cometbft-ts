@@ -6,7 +6,8 @@ export interface ValidatorJson {
       type: string;
       value: string;
     };
-    voting_power: string;
+    voting_power?: string;
+    power?: string;
     proposer_priority?: string;
   }[];
   count: string;
