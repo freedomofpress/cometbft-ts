@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { importCommit } from "../commit";
-import {
-  base64ToUint8Array,
-  Uint8ArrayToBase64,
-  Uint8ArrayToHex,
-} from "../encoding";
+import { Uint8ArrayToBase64, Uint8ArrayToHex } from "../encoding";
 import { verifyCommit } from "../lightclient";
 import type { CommitJson, ValidatorJson } from "../types";
 import { importValidators } from "../validators";
@@ -35,5 +31,59 @@ describe("lightclient.verifyCommit", () => {
     expect(out.unknownValidators.length).toBe(0);
     expect(out.invalidSignatures.length).toBe(0);
     expect(out.countedSignatures).toBeGreaterThan(0);
+  });
+
+  it("flags invalid signatures", async () => {
+    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const commit = clone(blockFixture) as unknown as CommitJson;
+
+    commit.signed_header.commit.signatures[0].signature = Uint8ArrayToBase64(
+      new Uint8Array(64),
+    );
+
+    const { proto: vset, cryptoIndex } = await importValidators(validators);
+    const sh = importCommit(commit);
+
+    const out = await verifyCommit(sh, vset, cryptoIndex);
+
+    expect(out.quorum).toBe(false);
+    expect(out.ok).toBe(false);
+    expect(out.signedPower).toBe(0n);
+    expect(out.invalidSignatures).toEqual([
+      Uint8ArrayToHex(vset.validators[0].address).toUpperCase(),
+    ]);
+    expect(out.countedSignatures).toBe(1);
+  });
+
+  it("rejects malformed signature bytes", async () => {
+    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const commit = clone(blockFixture) as unknown as CommitJson;
+
+    // Truncate the signature (must be 64 bytes for Ed25519)
+    commit.signed_header.commit.signatures[0].signature = "AA==";
+
+    await expect(async () => importCommit(commit)).rejects.toThrow(
+      /signature must be 64 bytes/,
+    );
+  });
+
+  it("reports unknown validators", async () => {
+    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const commit = clone(blockFixture) as unknown as CommitJson;
+
+    commit.signed_header.commit.signatures[0].validator_address =
+      "0000000000000000000000000000000000000000";
+
+    const { proto: vset, cryptoIndex } = await importValidators(validators);
+    const sh = importCommit(commit);
+
+    const out = await verifyCommit(sh, vset, cryptoIndex);
+
+    expect(out.quorum).toBe(false);
+    expect(out.ok).toBe(false);
+    expect(out.signedPower).toBe(0n);
+    expect(out.invalidSignatures).toEqual([]);
+    expect(out.unknownValidators).toEqual(["0000000000000000000000000000000000000000"]);
+    expect(out.countedSignatures).toBe(0);
   });
 });
