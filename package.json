@@ -24,11 +24,13 @@
   "repository": "github:freedomofpress/cometbft-ts",
   "bugs": "https://github.com/freedomofpress/cometbft-ts/issues",
   "devDependencies": {
-    "@bufbuild/protobuf": "^2.10.1",
     "@vitest/coverage-v8": "^4.0.13",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.0",
     "vitest": "^4.0.13"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.10.1"
   }
 }
