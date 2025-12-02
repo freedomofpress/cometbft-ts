@@ -7,7 +7,7 @@ import {
   Uint8ArrayToHex,
 } from "../encoding";
 import { verifyCommit } from "../lightclient";
-import type { CommitResponse, ValidatorResponse } from "../types";
+import type { CommitJson, ValidatorJson } from "../types";
 import { importValidators } from "../validators";
 import commitFixture from "./fixtures/commit-12.json";
 import validatorsFixture from "./fixtures/validators-12.json";
@@ -18,12 +18,11 @@ function clone<T>(x: T): T {
 
 describe("lightclient.verifyCommit", () => {
   it("verifies a valid commit against the validator set", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
-    const cResp = commitFixture as unknown as CommitResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const cResp = commitFixture as unknown as CommitJson;
 
-    const { proto: vset, cryptoIndex, height } = await importValidators(vResp);
+    const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(cResp);
-    expect(height).toBe(sh.commit!.height);
 
     const out = await verifyCommit(sh, vset, cryptoIndex);
 
@@ -40,15 +39,15 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("fails quorum and invalidates all signatures when block_id.hash is tampered", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
 
     const badCommit = clone(commitFixture) as any;
-    const h: string = badCommit.result.signed_header.commit.block_id.hash;
-    badCommit.result.signed_header.commit.block_id.hash =
+    const h: string = badCommit.signed_header.commit.block_id.hash;
+    badCommit.signed_header.commit.block_id.hash =
       h.slice(0, -2) + (h.slice(-2) === "00" ? "01" : "00");
 
-    const sh = importCommit(badCommit as CommitResponse);
+    const sh = importCommit(badCommit as CommitJson);
     const out = await verifyCommit(sh, vset, cryptoIndex);
 
     expect(out.quorum).toBe(false);
@@ -57,16 +56,16 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("drops below 2/3 quorum when two votes are ABSENT", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
 
     const lowPower = clone(commitFixture) as any;
     for (let i = 0; i < 2; i++) {
-      lowPower.result.signed_header.commit.signatures[i].block_id_flag = 1;
-      lowPower.result.signed_header.commit.signatures[i].signature = "";
+      lowPower.signed_header.commit.signatures[i].block_id_flag = 1;
+      lowPower.signed_header.commit.signatures[i].signature = "";
     }
 
-    const sh = importCommit(lowPower as CommitResponse);
+    const sh = importCommit(lowPower as CommitJson);
     const out = await verifyCommit(sh, vset, cryptoIndex);
 
     expect(out.quorum).toBe(false);
@@ -75,18 +74,18 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("keeps quorum when one signature is corrupted and reports it as invalid", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
 
     const badSigResp = clone(commitFixture) as any;
     const sigB64: string =
-      badSigResp.result.signed_header.commit.signatures[0].signature;
+      badSigResp.signed_header.commit.signatures[0].signature;
     const sigBytes = base64ToUint8Array(sigB64);
     sigBytes[0] ^= 0x01;
-    badSigResp.result.signed_header.commit.signatures[0].signature =
+    badSigResp.signed_header.commit.signatures[0].signature =
       Uint8ArrayToBase64(sigBytes);
 
-    const sh = importCommit(badSigResp as CommitResponse);
+    const sh = importCommit(badSigResp as CommitJson);
     const out = await verifyCommit(sh, vset, cryptoIndex);
 
     expect(out.quorum).toBe(true);
@@ -95,9 +94,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("adds 0 power when a validator's votingPower is undefined but signature is valid", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     const vsetZeroOne = {
       validators: vset.validators.map((vv, i) =>
@@ -117,9 +116,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when SignedHeader is missing header/commit", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     delete (sh as any).header;
     await expect(verifyCommit(sh as any, vset, cryptoIndex)).rejects.toThrow(
@@ -128,9 +127,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws on header/commit height mismatch", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit as any).height = 13n;
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /height mismatch/i,
@@ -138,9 +137,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when validator set is empty", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset0, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     const vset = { ...vset0, validators: [] };
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /no validators/i,
@@ -148,9 +147,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when validator set totalVotingPower is missing (defaults to 0n)", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     const vsetMissing = {
       validators: vset.validators,
@@ -164,9 +163,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when total voting power is non-positive", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset0, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     const vset = { ...vset0, totalVotingPower: 0n };
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /total power/i,
@@ -174,9 +173,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws on duplicate validator address in the set", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset0, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     const dup = vset0.validators[0];
     const vset = { ...vset0, validators: [...vset0.validators, dup] };
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
@@ -185,9 +184,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when commit BlockID is missing", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit as any).blockId = undefined;
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /missing blockid/i,
@@ -195,16 +194,16 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when PartSetHeader is missing or malformed", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
 
-    const sh1 = importCommit(commitFixture as unknown as CommitResponse);
+    const sh1 = importCommit(commitFixture as unknown as CommitJson);
     (sh1.commit!.blockId as any).partSetHeader = undefined;
     await expect(verifyCommit(sh1, vset, cryptoIndex)).rejects.toThrow(
       /partsetheader is missing/i,
     );
 
-    const sh2 = importCommit(commitFixture as unknown as CommitResponse);
+    const sh2 = importCommit(commitFixture as unknown as CommitJson);
     (sh2.commit!.blockId!.partSetHeader as any).hash = new Uint8Array(0);
     await expect(verifyCommit(sh2, vset, cryptoIndex)).rejects.toThrow(
       /partsetheader hash is missing/i,
@@ -212,9 +211,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when PartSetHeader.total is invalid", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit!.blockId!.partSetHeader as any).total = -1;
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /total is invalid/i,
@@ -222,9 +221,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("collects unknown validator addresses without counting them", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     const u = new Uint8Array(20);
     u.fill(0xff);
@@ -240,9 +239,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("marks a COMMIT with empty signature as invalid and does not count it", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     sh.commit!.signatures[1].signature = new Uint8Array(0);
 
@@ -255,9 +254,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("keeps quorum when one verify() call throws (caught) and marks that vote invalid", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     const originalVerify = crypto.subtle.verify.bind(crypto.subtle) as (
       ...args: Parameters<SubtleCrypto["verify"]>
@@ -289,9 +288,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("treats a known validator without a crypto key as invalid but still counts the vote attempt", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
 
     const addrHex = Uint8ArrayToHex(
       sh.commit!.signatures[0].validatorAddress,
@@ -307,9 +306,9 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("throws when BlockID hash is empty", async () => {
-    const vResp = validatorsFixture as unknown as ValidatorResponse;
+    const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
-    const sh = importCommit(commitFixture as unknown as CommitResponse);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit!.blockId as any).hash = new Uint8Array(0);
     await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
       /blockid hash is missing/i,

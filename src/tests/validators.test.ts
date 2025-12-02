@@ -5,7 +5,7 @@ import {
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
 } from "../encoding";
-import type { ValidatorResponse } from "../types";
+import type { ValidatorJson } from "../types";
 import { importValidators } from "../validators";
 import validatorsFixture from "./fixtures/validators-12.json";
 
@@ -45,21 +45,16 @@ function makeResponse(
   height = "12",
   countOverride?: string,
   totalOverride?: string,
-): ValidatorResponse {
+): ValidatorJson {
   const count = countOverride ?? String(entries.length);
   const total = totalOverride ?? String(entries.length);
   return {
-    jsonrpc: "2.0",
-    id: -1,
-    result: {
-      block_height: height,
-      validators: entries,
-      count,
-      total,
-    },
+    block_height: height,
+    validators: entries,
+    count,
+    total,
   };
 }
-
 // ---------------------- tests -------------------------
 
 describe("importValidators (browser crypto)", () => {
@@ -72,7 +67,6 @@ describe("importValidators (browser crypto)", () => {
 
     const out = await importValidators(resp);
 
-    expect(out.height).toBe(42n);
     expect(out.proto.validators).toHaveLength(4);
     expect(out.proto.totalVotingPower).toBe(10n); // 1+2+3+4
 
@@ -110,29 +104,13 @@ describe("importValidators (browser crypto)", () => {
     const out = await importValidators(resp);
 
     // Derive expected addresses (uppercase) from pubkeys and confirm present in cryptoIndex
-    for (const e of resp.result.validators) {
+    for (const e of resp.validators) {
       const pubRaw = base64ToUint8Array(e.pub_key.value);
       const derived = Uint8ArrayToHex(
         (await sha256(pubRaw)).slice(0, 20),
       ).toUpperCase();
       expect(out.cryptoIndex.has(derived)).toBe(true);
     }
-  });
-
-  it("throws when the response paginates (count !== total)", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    const v2 = await makeValidatorEntry(filledBytes(2), 1);
-    const resp = makeResponse([v1, v2], "1", /*count*/ "2", /*total*/ "3");
-    await expect(importValidators(resp)).rejects.toThrow(/must not paginate/i);
-  });
-
-  it("throws when validators.length !== count (mismatch)", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    const v2 = await makeValidatorEntry(filledBytes(2), 1);
-    const resp = makeResponse([v1, v2], "1", /*count*/ "3", /*total*/ "3");
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Failed to parse enough validators/i,
-    );
   });
 
   it("throws when validators array is empty", async () => {
@@ -148,34 +126,6 @@ describe("importValidators (browser crypto)", () => {
     } as any;
 
     await expect(importValidators(resp)).rejects.toThrow(/Missing validators/i);
-  });
-
-  it("throws when count/total fields are missing", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    const resp = makeResponse([v1], "12");
-    delete (resp.result as any).count; // remove both to hit the guard
-    delete (resp.result as any).total;
-
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Missing validator count and total/i,
-    );
-  });
-
-  it("throws when total < 2 (single validator page)", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    // total === count === 1 triggers the 'must not paginate' guard via total < 2
-    const resp = makeResponse([v1], "12", "1", "1");
-
-    await expect(importValidators(resp)).rejects.toThrow(/must not paginate/i);
-  });
-
-  it("throws on missing block height", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    const resp = makeResponse([v1], ""); // empty height
-    (resp.result as any).block_height = "";
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Missing block height/,
-    );
   });
 
   it("throws on invalid address (wrong length/format)", async () => {
@@ -238,23 +188,13 @@ describe("importValidators (browser crypto)", () => {
       /Invalid voting power/i,
     );
   });
-
-  it("throws when final length check fails (validators.length !== total)", async () => {
-    const v1 = await makeValidatorEntry(filledBytes(1), 1);
-    const v2 = await makeValidatorEntry(filledBytes(2), 1);
-    const v3 = await makeValidatorEntry(filledBytes(3), 1);
-    const resp = makeResponse([v1, v2, v3], "7", /*count*/ "4", /*total*/ "4");
-    await expect(importValidators(resp)).rejects.toThrow(
-      /Failed to parse enough validators/i,
-    );
-  });
 });
 
 describe("validators fixture:", () => {
   it("derives address as SHA-256(pubkey)[0..20] (uppercased)", async () => {
-    const resp = validatorsFixture as unknown as ValidatorResponse;
+    const resp = validatorsFixture as unknown as ValidatorJson;
 
-    for (const entry of resp.result.validators) {
+    for (const entry of resp.validators) {
       const pubRaw = base64ToUint8Array(entry.pub_key.value);
       const derived = Uint8ArrayToHex(
         (await sha256(pubRaw)).slice(0, 20),
@@ -264,11 +204,10 @@ describe("validators fixture:", () => {
   });
 
   it("imports Ed25519 keys and fills proto validators correctly", async () => {
-    const resp = validatorsFixture as unknown as ValidatorResponse;
+    const resp = validatorsFixture as unknown as ValidatorJson;
 
     const out = await importValidators(resp);
 
-    expect(out.height).toBe(12n);
     expect(out.proto.validators).toHaveLength(4);
     expect(out.proto.totalVotingPower).toBe(4n);
 
@@ -282,7 +221,7 @@ describe("validators fixture:", () => {
     }
 
     // proto validators content matches derived bytes
-    for (const e of resp.result.validators) {
+    for (const e of resp.validators) {
       const pubRaw = base64ToUint8Array(e.pub_key.value);
       const sha = await sha256(pubRaw);
       const addr20 = sha.slice(0, 20);

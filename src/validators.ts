@@ -1,36 +1,21 @@
 import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
 import { Validator, ValidatorSet } from "./proto/cometbft/types/v1/validator";
-import type { ValidatorResponse } from "./types";
+import type { ValidatorJson } from "./types";
 
-export async function importValidators(resp: ValidatorResponse): Promise<{
-  height: bigint;
+export async function importValidators(resp: ValidatorJson): Promise<{
   proto: ValidatorSet;
   cryptoIndex: Map<string, CryptoKey>;
 }> {
-  if (!resp?.result?.validators?.length) {
-    throw new Error("Missing validators from response object");
-  }
-  if (!resp.result.count || !resp.result.total) {
-    throw new Error("Missing validator count and total from response object");
-  }
-  if (!resp.result.block_height) {
-    throw new Error("Missing block height");
-  }
-
-  const total = Number(resp.result.total);
-  if (total !== Number(resp.result.count) || total < 2) {
-    throw new Error("The response object must not paginate");
-  }
-
-  const height = BigInt(resp.result.block_height);
-
   const seen: Set<string> = new Set();
   const cryptoIndex = new Map<string, CryptoKey>();
   const protoValidators: Validator[] = [];
 
+  if (!resp.validators || resp.validators.length < 1) {
+    throw new Error("Missing validators");
+  }
   let countedPower = 0n;
 
-  for (const v of resp.result.validators) {
+  for (const v of resp.validators) {
     if (!v.address || v.address.length !== 40) {
       throw new Error(
         `Validator address must be 40 HEX digits, provided: ${v.address}`,
@@ -68,7 +53,7 @@ export async function importValidators(resp: ValidatorResponse): Promise<{
     seen.add(addrHex);
     cryptoIndex.set(addrHex, key);
 
-    const powerNum = Number(v.voting_power);
+    const powerNum = Number(v.voting_power) || Number(v.power);
     if (
       !Number.isFinite(powerNum) ||
       !Number.isInteger(powerNum) ||
@@ -89,15 +74,11 @@ export async function importValidators(resp: ValidatorResponse): Promise<{
     protoValidators.push(protoV);
   }
 
-  if (protoValidators.length < 2 || protoValidators.length !== total) {
-    throw new Error("Failed to parse enough validators");
-  }
-
   const protoSet: ValidatorSet = {
     validators: protoValidators,
     proposer: undefined,
     totalVotingPower: countedPower,
   };
 
-  return { height, proto: protoSet, cryptoIndex };
+  return { proto: protoSet, cryptoIndex };
 }

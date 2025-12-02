@@ -27,6 +27,20 @@ export interface VerifyOutcome {
   countedSignatures: number;
 }
 
+function encodeUvarint(value: number): Uint8Array {
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error("encodeUvarint expects a non-negative safe integer");
+
+  const bytes: number[] = [];
+  let v = value;
+  while (v >= 0x80) {
+    bytes.push((v & 0x7f) | 0x80);
+    v >>>= 7;
+  }
+  bytes.push(v);
+  return new Uint8Array(bytes);
+}
+
 function makePrecommitSignBytesProto(
   chainId: string,
   height: bigint,
@@ -49,9 +63,13 @@ function makePrecommitSignBytesProto(
   };
 
   const body = CanonicalVote.encode(vote).finish();
-  const out = new Uint8Array(1 + body.length);
-  out[0] = 0x71; // CometBFT canonical prefix
-  out.set(body, 1);
+  // Go's protoio.MarshalDelimited length-prefixes the canonical vote. Using
+  // the same varint prefix keeps signatures compatible with both v0.34.x and
+  // v1.0.x chains.
+  const prefix = encodeUvarint(body.length);
+  const out = new Uint8Array(prefix.length + body.length);
+  out.set(prefix, 0);
+  out.set(body, prefix.length);
   return out;
 }
 
