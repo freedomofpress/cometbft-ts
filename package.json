@@ -1,7 +1,11 @@
 {
-  "name": "cometbft",
+  "name": "@freedomofpress/cometbft",
   "version": "0.1.0",
   "description": "A CometBFT light client for the browser.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/freedomofpress/cometbft-ts"
+  },
   "main": "dist/client.js",
   "types": "dist/client.d.ts",
   "scripts": {
@@ -21,7 +25,6 @@
   "author": "Giulio B",
   "license": "MIT",
   "homepage": "https://github.com/freedomofpress/cometbft-ts#readme",
-  "repository": "github:freedomofpress/cometbft-ts",
   "bugs": "https://github.com/freedomofpress/cometbft-ts/issues",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.13",

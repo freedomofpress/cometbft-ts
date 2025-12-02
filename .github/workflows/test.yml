@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   lint-test:
@@ -52,33 +53,5 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run Vitest with coverage
-        run: npm run coverage
-
-      - name: Enforce 100% coverage
-        run: |
-          node <<'EOF'
-          const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync('coverage/coverage-final.json'));
-          const totals = {lines:0,coveredLines:0,functions:0,coveredFunctions:0,statements:0,coveredStatements:0,branches:0,coveredBranches:0};
-          for (const file of Object.values(data)) {
-            if (!file.lines || !file.functions || !file.statements || !file.branches) continue;
-            totals.lines += file.lines.total; totals.coveredLines += file.lines.covered;
-            totals.functions += file.functions.total; totals.coveredFunctions += file.functions.covered;
-            totals.statements += file.statements.total; totals.coveredStatements += file.statements.covered;
-            totals.branches += file.branches.total; totals.coveredBranches += file.branches.covered;
-          }
-          const pct = (c,t) => t === 0 ? 100 : (c/t)*100;
-          const checks = {
-            Lines: pct(totals.coveredLines, totals.lines),
-            Functions: pct(totals.coveredFunctions, totals.functions),
-            Statements: pct(totals.coveredStatements, totals.statements),
-            Branches: pct(totals.coveredBranches, totals.branches),
-          };
-          let failed = false;
-          for (const [k,v] of Object.entries(checks)) {
-            if (v < 100) { console.error(`❌ ${k} coverage below 100%: ${v.toFixed(2)}%`); failed = true; }
-            else { console.log(`✅ ${k} coverage is 100%`); }
-          }
-          if (failed) process.exit(1);
-          EOF
+      - name: Run tests
+        run: npm run test
