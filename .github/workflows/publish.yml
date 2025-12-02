@@ -34,6 +34,22 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Buf modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/buf
+          key: ${{ runner.os }}-buf-${{ hashFiles('buf.yaml', 'buf.gen.yaml', 'buf.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buf-
+
+      - name: Generate protobufs
+        run: npm run proto:gen
+
       - name: Build
         run: npm run build
 
