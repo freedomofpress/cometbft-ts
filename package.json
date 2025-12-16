@@ -30,7 +30,7 @@
     "@vitest/coverage-v8": "^4.0.15",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.49.0",
+    "typescript-eslint": "^8.50.0",
     "vitest": "^4.0.15"
   },
   "dependencies": {
