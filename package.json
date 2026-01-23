@@ -27,11 +27,11 @@
   "homepage": "https://github.com/freedomofpress/cometbft-ts#readme",
   "bugs": "https://github.com/freedomofpress/cometbft-ts/issues",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.17",
+    "@vitest/coverage-v8": "^4.0.18",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0"
