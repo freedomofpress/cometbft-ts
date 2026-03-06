@@ -38,7 +38,7 @@ describe("lightclient.verifyCommit", () => {
     expect(out.countedSignatures).toBeGreaterThan(0);
   });
 
-  it("fails quorum and invalidates all signatures when block_id.hash is tampered", async () => {
+  it("throws when commit block_id.hash does not match the header hash", async () => {
     const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
 
@@ -48,11 +48,26 @@ describe("lightclient.verifyCommit", () => {
       h.slice(0, -2) + (h.slice(-2) === "00" ? "01" : "00");
 
     const sh = importCommit(badCommit as CommitJson);
-    const out = await verifyCommit(sh, vset, cryptoIndex);
 
-    expect(out.quorum).toBe(false);
-    expect(out.invalidSignatures.length).toBe(out.countedSignatures);
-    expect(out.ok).toBe(false);
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
+  });
+
+  it("throws when app_hash is tampered", async () => {
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const { proto: vset, cryptoIndex } = await importValidators(vResp);
+
+    const badHeader = clone(commitFixture) as any;
+    const appHash: string = badHeader.signed_header.header.app_hash;
+    badHeader.signed_header.header.app_hash =
+      appHash.slice(0, -2) + (appHash.slice(-2) === "00" ? "01" : "00");
+
+    const sh = importCommit(badHeader as CommitJson);
+
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
   });
 
   it("drops below 2/3 quorum when two votes are ABSENT", async () => {

@@ -12,6 +12,175 @@ import {
 } from "./proto/cometbft/types/v1/validator";
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
 
+const LEAF_PREFIX = new Uint8Array([0]);
+const INNER_PREFIX = new Uint8Array([1]);
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const totalLen = parts.reduce((acc, p) => acc + p.length, 0);
+  const out = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const p of parts) {
+    out.set(p, offset);
+    offset += p.length;
+  }
+  return out;
+}
+
+async function sha256(input: Uint8Array): Promise<Uint8Array> {
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return new Uint8Array(digest);
+}
+
+function encodeVarint(value: bigint): Uint8Array {
+  if (value < 0n) throw new Error("encodeVarint expects a non-negative bigint");
+  const bytes: number[] = [];
+  let v = value;
+  while (v >= 0x80n) {
+    bytes.push(Number((v & 0x7fn) | 0x80n));
+    v >>= 7n;
+  }
+  bytes.push(Number(v));
+  return new Uint8Array(bytes);
+}
+
+function encodeFieldTag(fieldNumber: number, wireType: number): Uint8Array {
+  return encodeVarint(BigInt((fieldNumber << 3) | wireType));
+}
+
+function encodeProtoBytes(fieldNumber: number, value: Uint8Array): Uint8Array {
+  return concatBytes(
+    encodeFieldTag(fieldNumber, 2),
+    encodeVarint(BigInt(value.length)),
+    value,
+  );
+}
+
+function encodeProtoUint64(fieldNumber: number, value: bigint): Uint8Array {
+  return concatBytes(encodeFieldTag(fieldNumber, 0), encodeVarint(value));
+}
+
+function encodeProtoInt64(fieldNumber: number, value: bigint): Uint8Array {
+  const v = value < 0n ? (1n << 64n) + value : value;
+  return concatBytes(encodeFieldTag(fieldNumber, 0), encodeVarint(v));
+}
+
+function cdcEncodeString(value: string): Uint8Array | undefined {
+  if (value.length === 0) return undefined;
+  return encodeProtoBytes(1, new TextEncoder().encode(value));
+}
+
+function cdcEncodeInt64(value: bigint): Uint8Array {
+  return encodeProtoInt64(1, value);
+}
+
+function cdcEncodeBytes(value: Uint8Array): Uint8Array | undefined {
+  if (value.length === 0) return undefined;
+  return encodeProtoBytes(1, value);
+}
+
+function encodeTimestamp(ts: PbTimestamp): Uint8Array {
+  const seconds = encodeProtoInt64(1, ts.seconds ?? 0n);
+  const nanos = ts.nanos
+    ? concatBytes(encodeFieldTag(2, 0), encodeVarint(BigInt(ts.nanos)))
+    : new Uint8Array(0);
+  return concatBytes(seconds, nanos);
+}
+
+function encodePartSetHeader(total: number, hash: Uint8Array): Uint8Array {
+  return concatBytes(
+    encodeProtoUint64(1, BigInt(total)),
+    encodeProtoBytes(2, hash),
+  );
+}
+
+function encodeBlockId(
+  hash: Uint8Array,
+  partSetTotal: number,
+  partSetHash: Uint8Array,
+): Uint8Array {
+  const psh = encodePartSetHeader(partSetTotal, partSetHash);
+  return concatBytes(encodeProtoBytes(1, hash), encodeProtoBytes(2, psh));
+}
+
+async function merkleLeafHash(leaf: Uint8Array): Promise<Uint8Array> {
+  return sha256(concatBytes(LEAF_PREFIX, leaf));
+}
+
+async function merkleInnerHash(
+  left: Uint8Array,
+  right: Uint8Array,
+): Promise<Uint8Array> {
+  return sha256(concatBytes(INNER_PREFIX, left, right));
+}
+
+function merkleSplitPoint(length: number): number {
+  if (length < 1) throw new Error("Trying to split a tree with size < 1");
+  const bitLen = Math.floor(Math.log2(length)) + 1;
+  let k = 1 << (bitLen - 1);
+  if (k === length) k >>= 1;
+  return k;
+}
+
+async function merkleHashFromByteSlices(
+  items: Uint8Array[],
+): Promise<Uint8Array> {
+  if (items.length === 0) return sha256(new Uint8Array(0));
+  if (items.length === 1) return merkleLeafHash(items[0]);
+
+  const k = merkleSplitPoint(items.length);
+  const left = await merkleHashFromByteSlices(items.slice(0, k));
+  const right = await merkleHashFromByteSlices(items.slice(k));
+  return merkleInnerHash(left, right);
+}
+
+async function computeHeaderHash(
+  header: SignedHeader["header"],
+): Promise<Uint8Array> {
+  if (!header) throw new Error("SignedHeader missing header");
+  if (!header.lastBlockId || !header.lastBlockId.partSetHeader) {
+    throw new Error("Header lastBlockId is missing");
+  }
+  if (!header.time) throw new Error("Header time is missing");
+
+  const version = concatBytes(
+    encodeProtoUint64(1, header.version?.block ?? 0n),
+    encodeProtoUint64(2, header.version?.app ?? 0n),
+  );
+
+  const lastBlockId = encodeBlockId(
+    header.lastBlockId.hash,
+    header.lastBlockId.partSetHeader.total,
+    header.lastBlockId.partSetHeader.hash,
+  );
+
+  const fields: Uint8Array[] = [
+    version,
+    cdcEncodeString(header.chainId),
+    cdcEncodeInt64(header.height),
+    encodeTimestamp(header.time),
+    lastBlockId,
+    cdcEncodeBytes(header.lastCommitHash),
+    cdcEncodeBytes(header.dataHash),
+    cdcEncodeBytes(header.validatorsHash),
+    cdcEncodeBytes(header.nextValidatorsHash),
+    cdcEncodeBytes(header.consensusHash),
+    cdcEncodeBytes(header.appHash),
+    cdcEncodeBytes(header.lastResultsHash),
+    cdcEncodeBytes(header.evidenceHash),
+    cdcEncodeBytes(header.proposerAddress),
+  ].filter((x): x is Uint8Array => Boolean(x));
+
+  return merkleHashFromByteSlices(fields);
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export type CryptoIndex = Map<string, CryptoKey>;
 
 export interface VerifyOutcome {
@@ -132,6 +301,13 @@ export async function verifyCommit(
   const blockIdHash: Uint8Array = bid.hash;
   const partsHash: Uint8Array = bid.partSetHeader.hash;
   const partsTotal: number = bid.partSetHeader.total;
+
+  const expectedBlockHash = await computeHeaderHash(header);
+  if (!bytesEqual(expectedBlockHash, blockIdHash)) {
+    throw new Error(
+      "Header hash does not match commit BlockID hash (header fields were tampered or inconsistent)",
+    );
+  }
 
   let signedPower = 0n;
   const unknown: string[] = [];
