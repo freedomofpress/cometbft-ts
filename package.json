@@ -2,6 +2,7 @@
   "name": "@freedomofpress/cometbft",
   "version": "0.1.1",
   "description": "A CometBFT light client for the browser.",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/freedomofpress/cometbft-ts"

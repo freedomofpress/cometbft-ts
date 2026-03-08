@@ -5,11 +5,16 @@ import {
   CanonicalPartSetHeader,
   CanonicalVote,
 } from "./proto/cometbft/types/v1/canonical";
-import { SignedHeader, SignedMsgType } from "./proto/cometbft/types/v1/types";
+import {
+  BlockID,
+  SignedHeader,
+  SignedMsgType,
+} from "./proto/cometbft/types/v1/types";
 import {
   Validator as ProtoValidator,
   ValidatorSet as ProtoValidatorSet,
 } from "./proto/cometbft/types/v1/validator";
+import { Consensus } from "./proto/cometbft/version/v1/types";
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
 
 export type CryptoIndex = Map<string, CryptoKey>;
@@ -77,6 +82,143 @@ function hasTwoThirds(signed: bigint, total: bigint): boolean {
   return signed * 3n > total * 2n;
 }
 
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const length = parts.reduce((acc, p) => acc + p.length, 0);
+  const out = new Uint8Array(length);
+  let offset = 0;
+  for (const p of parts) {
+    out.set(p, offset);
+    offset += p.length;
+  }
+  return out;
+}
+
+function encodeUvarintBigint(value: bigint): Uint8Array {
+  if (value < 0n) throw new Error("uvarint cannot encode negative values");
+
+  const bytes: number[] = [];
+  let v = value;
+  while (v >= 0x80n) {
+    bytes.push(Number((v & 0x7fn) | 0x80n));
+    v >>= 7n;
+  }
+  bytes.push(Number(v));
+  return new Uint8Array(bytes);
+}
+
+function encodeLengthPrefixed(value: Uint8Array): Uint8Array {
+  return concatBytes(encodeUvarintBigint(BigInt(value.length)), value);
+}
+
+function encodeString(value: string): Uint8Array {
+  if (value.length === 0) return new Uint8Array();
+  return concatBytes(
+    new Uint8Array([0x0a]),
+    encodeLengthPrefixed(new TextEncoder().encode(value)),
+  );
+}
+
+function encodeBytes(value: Uint8Array): Uint8Array {
+  if (value.length === 0) return new Uint8Array();
+  return concatBytes(new Uint8Array([0x0a]), encodeLengthPrefixed(value));
+}
+
+function encodeInt64Value(value: bigint): Uint8Array {
+  if (value === 0n) return new Uint8Array();
+  return concatBytes(new Uint8Array([0x08]), encodeUvarintBigint(value));
+}
+
+function encodeTimestamp(timestamp?: PbTimestamp): Uint8Array {
+  if (!timestamp) return new Uint8Array();
+  return PbTimestamp.encode(timestamp).finish();
+}
+
+function encodeVersionForHeaderHash(
+  version: NonNullable<SignedHeader["header"]>["version"],
+): Uint8Array {
+  if (!version) return new Uint8Array();
+  return Consensus.encode(version).finish();
+}
+
+function encodeBlockIdForHeaderHash(
+  blockId: NonNullable<SignedHeader["header"]>["lastBlockId"],
+): Uint8Array {
+  if (!blockId) return new Uint8Array();
+  return BlockID.encode(blockId).finish();
+}
+
+async function sha256(data: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new Uint8Array(data)),
+  );
+}
+
+async function hashLeaf(leaf: Uint8Array): Promise<Uint8Array> {
+  return sha256(concatBytes(new Uint8Array([0]), leaf));
+}
+
+async function hashInner(
+  left: Uint8Array,
+  right: Uint8Array,
+): Promise<Uint8Array> {
+  return sha256(concatBytes(new Uint8Array([1]), left, right));
+}
+
+function getSplitPoint(size: number): number {
+  if (size < 1) throw new Error("Cannot split an empty merkle tree");
+  const p = 2 ** Math.floor(Math.log2(size));
+  return p < size ? p : p / 2;
+}
+
+async function simpleMerkleHashFromByteSlices(
+  chunks: Uint8Array[],
+): Promise<Uint8Array> {
+  if (chunks.length === 0) throw new Error("Cannot hash an empty merkle tree");
+  if (chunks.length === 1) return hashLeaf(chunks[0]);
+
+  const split = getSplitPoint(chunks.length);
+  const left = await simpleMerkleHashFromByteSlices(chunks.slice(0, split));
+  const right = await simpleMerkleHashFromByteSlices(chunks.slice(split));
+  return hashInner(left, right);
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+async function hashHeaderForBlockId(
+  header: NonNullable<SignedHeader["header"]>,
+): Promise<Uint8Array> {
+  if (!header.lastBlockId) {
+    throw new Error(
+      "Header missing lastBlockId required for hash verification",
+    );
+  }
+
+  const fields: Uint8Array[] = [
+    encodeVersionForHeaderHash(header.version),
+    encodeString(header.chainId),
+    encodeInt64Value(header.height),
+    encodeTimestamp(header.time),
+    encodeBlockIdForHeaderHash(header.lastBlockId),
+    encodeBytes(header.lastCommitHash),
+    encodeBytes(header.dataHash),
+    encodeBytes(header.validatorsHash),
+    encodeBytes(header.nextValidatorsHash),
+    encodeBytes(header.consensusHash),
+    encodeBytes(header.appHash),
+    encodeBytes(header.lastResultsHash),
+    encodeBytes(header.evidenceHash),
+    encodeBytes(header.proposerAddress),
+  ];
+
+  return simpleMerkleHashFromByteSlices(fields);
+}
+
 export async function verifyCommit(
   sh: SignedHeader,
   vset: ProtoValidatorSet,
@@ -132,6 +274,11 @@ export async function verifyCommit(
   const blockIdHash: Uint8Array = bid.hash;
   const partsHash: Uint8Array = bid.partSetHeader.hash;
   const partsTotal: number = bid.partSetHeader.total;
+  const expectedBlockIdHash = await hashHeaderForBlockId(header);
+  const headerMatchesCommitBlockId = bytesEqual(
+    expectedBlockIdHash,
+    blockIdHash,
+  );
 
   let signedPower = 0n;
   const unknown: string[] = [];
@@ -198,9 +345,10 @@ export async function verifyCommit(
   }
 
   const quorum = hasTwoThirds(signedPower, totalPower);
+  const ok = quorum && headerMatchesCommitBlockId;
 
   return {
-    ok: quorum,
+    ok,
     quorum,
     signedPower,
     totalPower,
