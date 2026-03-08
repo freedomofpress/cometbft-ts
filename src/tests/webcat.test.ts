@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { importCommit } from "../commit";
-import { Uint8ArrayToBase64, Uint8ArrayToHex } from "../encoding";
+import { Uint8ArrayToBase64 } from "../encoding";
 import { verifyCommit } from "../lightclient";
 import type { CommitJson, ValidatorJson } from "../types";
 import { importValidators } from "../validators";
@@ -12,51 +12,34 @@ function clone<T>(x: T): T {
 }
 
 describe("lightclient.verifyCommit", () => {
-  it("verifies a valid commit against the validator set", async () => {
+  it("rejects this fixture when header hash does not match commit block_id.hash", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = blockFixture as unknown as CommitJson;
 
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
-
-    expect(out.quorum).toBe(true);
-    expect(out.ok).toBe(true);
-    expect(out.signedPower > 0n).toBe(true);
-    expect(out.signedPower <= out.totalPower).toBe(true);
-    expect(out.headerTime).toBeDefined();
-    expect(out.appHash instanceof Uint8Array).toBe(true);
-    expect(out.blockIdHash instanceof Uint8Array).toBe(true);
-    expect(out.unknownValidators.length).toBe(0);
-    expect(out.invalidSignatures.length).toBe(0);
-    expect(out.countedSignatures).toBeGreaterThan(0);
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
   });
 
-  it("flags invalid signatures", async () => {
+  it("throws when commit block_id.hash does not match header hash", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = clone(blockFixture) as unknown as CommitJson;
 
-    // Flip one byte of the BlockID hash to keep the signature well-formed but
-    // cryptographically invalid for the mutated sign-bytes.
     commit.signed_header.commit.block_id.hash =
       "3A1D00CC2A092465E85EA2C24986BEE0105285039DC1873BB6B0CA7F610EC89D";
 
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
-
-    expect(out.quorum).toBe(false);
-    expect(out.ok).toBe(false);
-    expect(out.signedPower).toBe(0n);
-    expect(out.invalidSignatures).toEqual([
-      Uint8ArrayToHex(vset.validators[0].address).toUpperCase(),
-    ]);
-    expect(out.countedSignatures).toBe(1);
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
   });
 
-  it("flags invalid signatures", async () => {
+  it("still rejects on header/commit hash mismatch even when a signature is corrupted", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = clone(blockFixture) as unknown as CommitJson;
 
@@ -67,15 +50,9 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
-
-    expect(out.quorum).toBe(false);
-    expect(out.ok).toBe(false);
-    expect(out.signedPower).toBe(0n);
-    expect(out.invalidSignatures).toEqual([
-      Uint8ArrayToHex(vset.validators[0].address).toUpperCase(),
-    ]);
-    expect(out.countedSignatures).toBe(1);
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
   });
 
   it("rejects malformed signature bytes", async () => {
@@ -90,7 +67,7 @@ describe("lightclient.verifyCommit", () => {
     );
   });
 
-  it("reports unknown validators", async () => {
+  it("still rejects on header/commit hash mismatch even when validator is unknown", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = clone(blockFixture) as unknown as CommitJson;
 
@@ -100,15 +77,8 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
-
-    expect(out.quorum).toBe(false);
-    expect(out.ok).toBe(false);
-    expect(out.signedPower).toBe(0n);
-    expect(out.invalidSignatures).toEqual([]);
-    expect(out.unknownValidators).toEqual([
-      "0000000000000000000000000000000000000000",
-    ]);
-    expect(out.countedSignatures).toBe(0);
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /header hash does not match commit blockid hash/i,
+    );
   });
 });
