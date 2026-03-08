@@ -27,7 +27,7 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
 }
 
 async function sha256(input: Uint8Array): Promise<Uint8Array> {
-  const digest = await crypto.subtle.digest("SHA-256",new Uint8Array(input));
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(input));
   return new Uint8Array(digest);
 }
 
