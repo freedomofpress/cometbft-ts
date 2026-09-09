@@ -223,12 +223,19 @@ export async function verifyCommit(
   sh: SignedHeader,
   vset: ProtoValidatorSet,
   cryptoIndex: CryptoIndex,
+  expectedChainId: string,
 ): Promise<VerifyOutcome> {
   if (!sh?.header || !sh?.commit) {
     throw new Error("SignedHeader missing header/commit");
   }
   const header = sh.header;
   const commit = sh.commit;
+
+  if (header.chainId !== expectedChainId) {
+    throw new Error(
+      `Chain ID mismatch: expected ${expectedChainId}, got ${header.chainId}`,
+    );
+  }
 
   if (header.height !== commit.height) {
     throw new Error(
@@ -271,7 +278,6 @@ export async function verifyCommit(
     throw new Error("Commit PartSetHeader total is invalid");
   }
 
-  const chainId: string = header.chainId;
   const heightBig: bigint = header.height;
   const roundBig: bigint = BigInt(commit.round);
   const blockIdHash: Uint8Array = bid.hash;
@@ -316,7 +322,7 @@ export async function verifyCommit(
 
     // Canonical sign-bytes
     const signBytes = makePrecommitSignBytesProto(
-      chainId,
+      expectedChainId,
       heightBig,
       roundBig,
       blockIdHash,

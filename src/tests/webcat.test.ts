@@ -7,6 +7,8 @@ import type { CommitJson, ValidatorJson } from "../types";
 import { importValidators } from "../validators";
 import blockFixture from "./fixtures/webcat.json";
 
+const CHAIN_ID = blockFixture.signed_header.header.chain_id;
+
 function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x));
 }
@@ -27,7 +29,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(true);
     expect(out.ok).toBe(true);
@@ -54,7 +56,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /duplicate commit from validator/i,
     );
   });
@@ -69,7 +71,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /more signatures than validators/i,
     );
   });
@@ -86,7 +88,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(false);
     expect(out.ok).toBe(false);
@@ -109,7 +111,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(false);
     expect(out.ok).toBe(false);
@@ -142,7 +144,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(validators);
     const sh = importCommit(commit);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(false);
     expect(out.ok).toBe(false);
@@ -154,7 +156,7 @@ describe("lightclient.verifyCommit", () => {
     expect(out.countedSignatures).toBe(vset.validators.length - 1);
   });
 
-  it("detects tampering of every header field by checking the header merkle root against commit.block_id.hash", async () => {
+  it("detects header tampering through the header merkle root", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(validators);
 
@@ -168,9 +170,6 @@ describe("lightclient.verifyCommit", () => {
         commit.signed_header.header.version.app = String(
           BigInt(commit.signed_header.header.version.app) + 1n,
         );
-      },
-      "header.chain_id": (commit) => {
-        commit.signed_header.header.chain_id = `${commit.signed_header.header.chain_id}-tampered`;
       },
       "header.height": (commit) => {
         commit.signed_header.header.height = String(
@@ -250,6 +249,7 @@ describe("lightclient.verifyCommit", () => {
         importCommit(tampered as unknown as CommitJson),
         vset,
         cryptoIndex,
+        CHAIN_ID,
       );
 
       expect(out.ok, `${field} tampering should be detected`).toBe(false);

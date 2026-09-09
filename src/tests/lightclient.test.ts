@@ -12,6 +12,8 @@ import { importValidators } from "../validators";
 import commitFixture from "./fixtures/commit-12.json";
 import validatorsFixture from "./fixtures/validators-12.json";
 
+const CHAIN_ID = commitFixture.signed_header.header.chain_id;
+
 function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x));
 }
@@ -24,7 +26,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(cResp);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(true);
     expect(out.ok).toBe(true);
@@ -38,6 +40,17 @@ describe("lightclient.verifyCommit", () => {
     expect(out.countedSignatures).toBeGreaterThan(0);
   });
 
+  it("rejects an unexpected chain ID", async () => {
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const cResp = commitFixture as unknown as CommitJson;
+    const { proto: vset, cryptoIndex } = await importValidators(vResp);
+    const sh = importCommit(cResp);
+
+    await expect(
+      verifyCommit(sh, vset, cryptoIndex, "other-chain"),
+    ).rejects.toThrow(/chain ID mismatch/i);
+  });
+
   it("fails quorum and invalidates all signatures when block_id.hash is tampered", async () => {
     const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
@@ -48,7 +61,7 @@ describe("lightclient.verifyCommit", () => {
       h.slice(0, -2) + (h.slice(-2) === "00" ? "01" : "00");
 
     const sh = importCommit(badCommit as CommitJson);
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(false);
     expect(out.invalidSignatures.length).toBe(out.countedSignatures);
@@ -66,7 +79,7 @@ describe("lightclient.verifyCommit", () => {
     }
 
     const sh = importCommit(lowPower as CommitJson);
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(false);
     expect(out.ok).toBe(false);
@@ -86,7 +99,7 @@ describe("lightclient.verifyCommit", () => {
       Uint8ArrayToBase64(sigBytes);
 
     const sh = importCommit(badSigResp as CommitJson);
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(true);
     expect(out.invalidSignatures.length).toBe(1);
@@ -106,7 +119,7 @@ describe("lightclient.verifyCommit", () => {
       totalVotingPower: vset.totalVotingPower, // still 4n
     } as any;
 
-    const out = await verifyCommit(sh, vsetZeroOne, cryptoIndex);
+    const out = await verifyCommit(sh, vsetZeroOne, cryptoIndex, CHAIN_ID);
 
     expect(out.countedSignatures).toBe(4);
     expect(out.invalidSignatures.length).toBe(0);
@@ -121,9 +134,9 @@ describe("lightclient.verifyCommit", () => {
     const sh = importCommit(commitFixture as unknown as CommitJson);
 
     delete (sh as any).header;
-    await expect(verifyCommit(sh as any, vset, cryptoIndex)).rejects.toThrow(
-      /SignedHeader missing header\/commit/i,
-    );
+    await expect(
+      verifyCommit(sh as any, vset, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/SignedHeader missing header\/commit/i);
   });
 
   it("throws on header/commit height mismatch", async () => {
@@ -131,7 +144,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit as any).height = 13n;
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /height mismatch/i,
     );
   });
@@ -141,7 +154,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset0, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     const vset = { ...vset0, validators: [] };
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /no validators/i,
     );
   });
@@ -157,9 +170,9 @@ describe("lightclient.verifyCommit", () => {
       totalVotingPower: undefined as any, // triggers ?? 0n path
     } as any;
 
-    await expect(verifyCommit(sh, vsetMissing, cryptoIndex)).rejects.toThrow(
-      /total power must be positive/i,
-    );
+    await expect(
+      verifyCommit(sh, vsetMissing, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/total power must be positive/i);
   });
 
   it("throws when total voting power is non-positive", async () => {
@@ -167,7 +180,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset0, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     const vset = { ...vset0, totalVotingPower: 0n };
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /total power/i,
     );
   });
@@ -178,7 +191,7 @@ describe("lightclient.verifyCommit", () => {
     const sh = importCommit(commitFixture as unknown as CommitJson);
     const dup = vset0.validators[0];
     const vset = { ...vset0, validators: [...vset0.validators, dup] };
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /duplicate validator address/i,
     );
   });
@@ -188,7 +201,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit as any).blockId = undefined;
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /missing blockid/i,
     );
   });
@@ -199,15 +212,15 @@ describe("lightclient.verifyCommit", () => {
 
     const sh1 = importCommit(commitFixture as unknown as CommitJson);
     (sh1.commit!.blockId as any).partSetHeader = undefined;
-    await expect(verifyCommit(sh1, vset, cryptoIndex)).rejects.toThrow(
-      /partsetheader is missing/i,
-    );
+    await expect(
+      verifyCommit(sh1, vset, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/partsetheader is missing/i);
 
     const sh2 = importCommit(commitFixture as unknown as CommitJson);
     (sh2.commit!.blockId!.partSetHeader as any).hash = new Uint8Array(0);
-    await expect(verifyCommit(sh2, vset, cryptoIndex)).rejects.toThrow(
-      /partsetheader hash is missing/i,
-    );
+    await expect(
+      verifyCommit(sh2, vset, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/partsetheader hash is missing/i);
   });
 
   it("throws when PartSetHeader.total is invalid", async () => {
@@ -215,7 +228,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit!.blockId!.partSetHeader as any).total = -1;
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /total is invalid/i,
     );
   });
@@ -229,7 +242,7 @@ describe("lightclient.verifyCommit", () => {
     u.fill(0xff);
     sh.commit!.signatures[0].validatorAddress = u;
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(true);
     expect(out.ok).toBe(true);
@@ -245,7 +258,7 @@ describe("lightclient.verifyCommit", () => {
 
     sh.commit!.signatures[1].signature = new Uint8Array(0);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.invalidSignatures.length).toBe(1);
     expect(out.countedSignatures).toBe(3);
@@ -277,7 +290,7 @@ describe("lightclient.verifyCommit", () => {
     };
 
     try {
-      const out = await verifyCommit(sh, vset, cryptoIndex);
+      const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
       expect(out.quorum).toBe(true);
       expect(out.ok).toBe(true);
       expect(out.invalidSignatures.length).toBe(1);
@@ -297,7 +310,7 @@ describe("lightclient.verifyCommit", () => {
     ).toUpperCase();
     cryptoIndex.delete(addrHex);
 
-    const out = await verifyCommit(sh, vset, cryptoIndex);
+    const out = await verifyCommit(sh, vset, cryptoIndex, CHAIN_ID);
 
     expect(out.quorum).toBe(true);
     expect(out.ok).toBe(true);
@@ -310,7 +323,7 @@ describe("lightclient.verifyCommit", () => {
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
     (sh.commit!.blockId as any).hash = new Uint8Array(0);
-    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /blockid hash is missing/i,
     );
   });
