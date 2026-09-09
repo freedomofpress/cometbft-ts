@@ -11,6 +11,7 @@ import {
   SignedMsgType,
 } from "./proto/cometbft/types/v1/types";
 import {
+  SimpleValidator as ProtoSimpleValidator,
   Validator as ProtoValidator,
   ValidatorSet as ProtoValidatorSet,
 } from "./proto/cometbft/types/v1/validator";
@@ -219,6 +220,21 @@ async function hashHeaderForBlockId(
   return simpleMerkleHashFromByteSlices(fields);
 }
 
+async function hashValidatorSet(vset: ProtoValidatorSet): Promise<Uint8Array> {
+  const validators = vset.validators.map((validator) => {
+    if (validator.pubKeyType !== "ed25519") {
+      throw new Error(
+        `Unsupported validator key type: ${validator.pubKeyType}`,
+      );
+    }
+    return ProtoSimpleValidator.encode({
+      pubKey: { ed25519: validator.pubKeyBytes },
+      votingPower: validator.votingPower ?? 0n,
+    }).finish();
+  });
+  return simpleMerkleHashFromByteSlices(validators);
+}
+
 export async function verifyCommit(
   sh: SignedHeader,
   vset: ProtoValidatorSet,
@@ -261,6 +277,11 @@ export async function verifyCommit(
     if (setByAddrHex.has(hex))
       throw new Error(`Duplicate validator address in set: ${hex}`);
     setByAddrHex.set(hex, v);
+  }
+
+  const validatorSetHash = await hashValidatorSet(vset);
+  if (!bytesEqual(validatorSetHash, header.validatorsHash)) {
+    throw new Error("Header validator hash does not match validator set");
   }
 
   if (!commit.blockId) throw new Error("Commit missing BlockID");
