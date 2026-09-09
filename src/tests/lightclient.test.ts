@@ -96,7 +96,10 @@ describe("lightclient.verifyCommit", () => {
     const lowPower = clone(commitFixture) as any;
     for (let i = 0; i < 2; i++) {
       lowPower.signed_header.commit.signatures[i].block_id_flag = 1;
-      lowPower.signed_header.commit.signatures[i].signature = "";
+      lowPower.signed_header.commit.signatures[i].validator_address = "";
+      lowPower.signed_header.commit.signatures[i].timestamp =
+        "0001-01-01T00:00:00Z";
+      lowPower.signed_header.commit.signatures[i].signature = null;
     }
 
     const sh = importCommit(lowPower as CommitJson);

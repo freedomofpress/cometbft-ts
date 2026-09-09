@@ -61,20 +61,27 @@ describe("lightclient.verifyCommit", () => {
     );
   });
 
-  it("rejects more commit slots than validators", async () => {
-    const validators = blockFixture.validator_set as unknown as ValidatorJson;
-    const commit = clone(blockFixture) as unknown as CommitJson;
-    commit.signed_header.commit.signatures.push(
-      clone(commit.signed_header.commit.signatures[0]),
-    );
+  it.each(["fewer", "more"])(
+    "rejects %s commit slots than validators",
+    async (count) => {
+      const validators = blockFixture.validator_set as unknown as ValidatorJson;
+      const commit = clone(blockFixture) as unknown as CommitJson;
+      if (count === "fewer") {
+        commit.signed_header.commit.signatures.pop();
+      } else {
+        commit.signed_header.commit.signatures.push(
+          clone(commit.signed_header.commit.signatures[0]),
+        );
+      }
 
-    const { proto: vset, cryptoIndex } = await importValidators(validators);
-    const sh = importCommit(commit);
+      const { proto: vset, cryptoIndex } = await importValidators(validators);
+      const sh = importCommit(commit);
 
-    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
-      /more signatures than validators/i,
-    );
-  });
+      await expect(
+        verifyCommit(sh, vset, cryptoIndex, CHAIN_ID),
+      ).rejects.toThrow(/signature count does not match validator set/i);
+    },
+  );
 
   it("flags invalid signatures", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;

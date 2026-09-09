@@ -152,30 +152,51 @@ export function importCommit(resp: CommitJson): SignedHeader {
     throw new Error("Commit has no signatures");
   }
   const signatures: CommitSig[] = c.signatures.map((s, i) => {
-    if (typeof s.block_id_flag !== "number") {
-      throw new Error(`signatures[${i}].block_id_flag must be a number`);
+    const flag = s.block_id_flag;
+    if (!Number.isInteger(flag) || flag < 1 || flag > 3) {
+      throw new Error(`signatures[${i}].block_id_flag is invalid`);
     }
-    if (!s.validator_address) {
+
+    if (typeof s.timestamp !== "string" || !s.timestamp) {
+      throw new Error(`signatures[${i}].timestamp missing`);
+    }
+    const timestamp = parseRFC3339ToTimestamp(s.timestamp);
+
+    if (flag === BlockIDFlag.BLOCK_ID_FLAG_ABSENT) {
+      if (s.validator_address !== "") {
+        throw new Error(`signatures[${i}].validator_address must be empty`);
+      }
+      if (s.timestamp !== "0001-01-01T00:00:00Z") {
+        throw new Error(`signatures[${i}].timestamp must be zero`);
+      }
+      if (s.signature !== null && s.signature !== "") {
+        throw new Error(`signatures[${i}].signature must be empty`);
+      }
+      return {
+        blockIdFlag: flag,
+        validatorAddress: new Uint8Array(0),
+        timestamp,
+        signature: new Uint8Array(0),
+      };
+    }
+
+    if (typeof s.validator_address !== "string" || !s.validator_address) {
       throw new Error(`signatures[${i}].validator_address missing`);
     }
     const validatorAddress = hexToUint8Array(s.validator_address);
     assertLen(`signatures[${i}].validator_address`, validatorAddress, 20);
 
-    // bytes fields in proto3 are NOT optional -> use empty Uint8Array when absent
-    const sigBytes = s.signature
-      ? base64ToUint8Array(s.signature)
-      : new Uint8Array(0);
-    if (sigBytes.length !== 0) {
-      assertLen(`signatures[${i}].signature`, sigBytes, 64); // Ed25519
+    if (typeof s.signature !== "string" || !s.signature) {
+      throw new Error(`signatures[${i}].signature missing`);
     }
-
-    const ts = s.timestamp ? parseRFC3339ToTimestamp(s.timestamp) : undefined;
+    const signature = base64ToUint8Array(s.signature);
+    assertLen(`signatures[${i}].signature`, signature, 64);
 
     return {
-      blockIdFlag: s.block_id_flag as BlockIDFlag,
+      blockIdFlag: flag,
       validatorAddress,
-      timestamp: ts, // PbTimestamp | undefined (useDate=false)
-      signature: sigBytes, // always Uint8Array (maybe length 0)
+      timestamp,
+      signature,
     };
   });
 
