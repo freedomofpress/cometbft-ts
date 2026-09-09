@@ -41,6 +41,39 @@ describe("lightclient.verifyCommit", () => {
     expect(out.countedSignatures).toBeGreaterThan(0);
   });
 
+  it("rejects duplicate commit votes", async () => {
+    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const commit = clone(blockFixture) as unknown as CommitJson;
+    const signature = commit.signed_header.commit.signatures[0];
+    commit.signed_header.commit.signatures = [
+      clone(signature),
+      clone(signature),
+      clone(signature),
+    ];
+
+    const { proto: vset, cryptoIndex } = await importValidators(validators);
+    const sh = importCommit(commit);
+
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /duplicate commit from validator/i,
+    );
+  });
+
+  it("rejects more commit slots than validators", async () => {
+    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const commit = clone(blockFixture) as unknown as CommitJson;
+    commit.signed_header.commit.signatures.push(
+      clone(commit.signed_header.commit.signatures[0]),
+    );
+
+    const { proto: vset, cryptoIndex } = await importValidators(validators);
+    const sh = importCommit(commit);
+
+    await expect(verifyCommit(sh, vset, cryptoIndex)).rejects.toThrow(
+      /more signatures than validators/i,
+    );
+  });
+
   it("flags invalid signatures", async () => {
     const validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = clone(blockFixture) as unknown as CommitJson;

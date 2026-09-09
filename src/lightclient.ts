@@ -243,6 +243,9 @@ export async function verifyCommit(
   if (totalPower <= 0n) {
     throw new Error("ValidatorSet total power must be positive");
   }
+  if (commit.signatures.length > vset.validators.length) {
+    throw new Error("Commit has more signatures than validators");
+  }
 
   // Build address -> validator map
   const setByAddrHex = new Map<string, ProtoValidator>();
@@ -284,6 +287,7 @@ export async function verifyCommit(
   const unknown: string[] = [];
   const invalid: string[] = [];
   let counted = 0;
+  const seenCommitValidators = new Set<string>();
 
   for (let idx = 0; idx < commit.signatures.length; idx++) {
     const s = commit.signatures[idx];
@@ -297,6 +301,10 @@ export async function verifyCommit(
       unknown.push(addrHex);
       continue;
     }
+    if (seenCommitValidators.has(addrHex)) {
+      throw new Error(`Duplicate commit from validator: ${addrHex}`);
+    }
+    seenCommitValidators.add(addrHex);
 
     if (!s.signature || s.signature.length === 0) {
       invalid.push(addrHex);
