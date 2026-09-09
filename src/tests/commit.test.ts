@@ -10,6 +10,17 @@ function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x));
 }
 
+function commitWithAbsentSignature() {
+  const commit = clone(commitFixture) as any;
+  commit.signed_header.commit.signatures[0] = {
+    block_id_flag: 1,
+    validator_address: "",
+    timestamp: "0001-01-01T00:00:00Z",
+    signature: null,
+  };
+  return commit as CommitJson;
+}
+
 describe("importCommit: happy path (fixture)", () => {
   it("parses a valid signed_header into SignedHeader (ts-proto, useDate=false)", () => {
     const resp = commitFixture as unknown as CommitJson;
@@ -196,10 +207,43 @@ describe("importCommit: validation errors", () => {
     expect(() => importCommit(bad)).toThrow(/Commit has no signatures/);
   });
 
-  it("fails on invalid signatures[*].block_id_flag type", () => {
+  it.each(["2", 0, 4, 1.5])("fails on invalid block_id_flag %s", (flag) => {
     const bad = clone(commitFixture) as any;
-    bad.signed_header.commit.signatures[0].block_id_flag = "2";
-    expect(() => importCommit(bad)).toThrow(/block_id_flag must be a number/);
+    bad.signed_header.commit.signatures[0].block_id_flag = flag;
+    expect(() => importCommit(bad)).toThrow(/block_id_flag is invalid/);
+  });
+
+  it("parses an absent signature", () => {
+    const sh = importCommit(commitWithAbsentSignature());
+    const signature = sh.commit!.signatures[0];
+
+    expect(signature.blockIdFlag).toBe(1);
+    expect(signature.validatorAddress).toHaveLength(0);
+    expect(signature.timestamp).toEqual({
+      seconds: -62135596800n,
+      nanos: 0,
+    });
+    expect(signature.signature).toHaveLength(0);
+  });
+
+  it.each([
+    ["validator_address", "0000000000000000000000000000000000000000"],
+    ["timestamp", "2025-08-18T13:39:11Z"],
+    ["signature", "AA=="],
+  ])("rejects %s on an absent signature", (field, value) => {
+    const bad = commitWithAbsentSignature() as any;
+    bad.signed_header.commit.signatures[0][field] = value;
+
+    expect(() => importCommit(bad)).toThrow(new RegExp(`${field} must be`));
+  });
+
+  it("parses a NIL vote", () => {
+    const resp = clone(commitFixture) as any;
+    resp.signed_header.commit.signatures[0].block_id_flag = 3;
+
+    const sh = importCommit(resp as CommitJson);
+
+    expect(sh.commit!.signatures[0].blockIdFlag).toBe(3);
   });
 
   it("fails on missing validator_address", () => {
@@ -235,22 +279,18 @@ describe("importCommit: validation errors", () => {
     expect(typeof sh.header!.time?.seconds).toBe("bigint");
   });
 
-  it("allows a signature with no timestamp (kept undefined)", () => {
+  it("fails when a present vote has no timestamp", () => {
     const resp = clone(commitFixture) as any;
     delete resp.signed_header.commit.signatures[0].timestamp;
 
-    const sh = importCommit(resp as CommitJson);
-
-    expect(sh.commit!.signatures[0].timestamp).toBeUndefined();
+    expect(() => importCommit(resp as CommitJson)).toThrow(/timestamp missing/);
   });
 
-  it("allows missing signature (proto3 bytes -> empty) and sets length to 0", () => {
-    const good = clone(commitFixture) as any;
-    delete good.signed_header.commit.signatures[0].signature;
+  it("fails when a present vote has no signature", () => {
+    const resp = clone(commitFixture) as any;
+    delete resp.signed_header.commit.signatures[0].signature;
 
-    const sh = importCommit(good as CommitJson);
-    expect(sh.commit!.signatures[0].signature).toBeInstanceOf(Uint8Array);
-    expect(sh.commit!.signatures[0].signature.length).toBe(0);
+    expect(() => importCommit(resp as CommitJson)).toThrow(/signature missing/);
   });
 
   it("fails on wrong signature length (not 64 bytes) without Buffer", () => {

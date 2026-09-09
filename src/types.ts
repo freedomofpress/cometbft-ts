@@ -55,7 +55,7 @@ export interface CommitJson {
         block_id_flag: number;
         validator_address: string;
         timestamp: string;
-        signature: string; // base64
+        signature: string | null; // base64 when present
       }[];
     };
   };
