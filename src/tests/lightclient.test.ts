@@ -51,6 +51,27 @@ describe("lightclient.verifyCommit", () => {
     ).rejects.toThrow(/chain ID mismatch/i);
   });
 
+  it("rejects a validator set that does not match the header", async () => {
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const cResp = commitFixture as unknown as CommitJson;
+    const { proto: vset, cryptoIndex } = await importValidators(vResp);
+    const sh = importCommit(cResp);
+    const validators = vset.validators.map((validator, index) =>
+      index === 0
+        ? { ...validator, votingPower: validator.votingPower + 1n }
+        : validator,
+    );
+    const alteredVset = {
+      ...vset,
+      validators,
+      totalVotingPower: vset.totalVotingPower + 1n,
+    };
+
+    await expect(
+      verifyCommit(sh, alteredVset, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/validator hash does not match validator set/i);
+  });
+
   it("fails quorum and invalidates all signatures when block_id.hash is tampered", async () => {
     const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
@@ -106,7 +127,7 @@ describe("lightclient.verifyCommit", () => {
     expect(out.ok).toBe(true);
   });
 
-  it("adds 0 power when a validator's votingPower is undefined but signature is valid", async () => {
+  it("rejects a validator without voting power", async () => {
     const vResp = validatorsFixture as unknown as ValidatorJson;
     const { proto: vset, cryptoIndex } = await importValidators(vResp);
     const sh = importCommit(commitFixture as unknown as CommitJson);
@@ -119,13 +140,9 @@ describe("lightclient.verifyCommit", () => {
       totalVotingPower: vset.totalVotingPower, // still 4n
     } as any;
 
-    const out = await verifyCommit(sh, vsetZeroOne, cryptoIndex, CHAIN_ID);
-
-    expect(out.countedSignatures).toBe(4);
-    expect(out.invalidSignatures.length).toBe(0);
-    expect(out.signedPower).toBe(out.totalPower - 1n); // 3n of 4n
-    expect(out.quorum).toBe(true);
-    expect(out.ok).toBe(true);
+    await expect(
+      verifyCommit(sh, vsetZeroOne, cryptoIndex, CHAIN_ID),
+    ).rejects.toThrow(/validator hash does not match validator set/i);
   });
 
   it("throws when SignedHeader is missing header/commit", async () => {

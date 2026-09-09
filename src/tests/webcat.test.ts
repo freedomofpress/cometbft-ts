@@ -204,11 +204,6 @@ describe("lightclient.verifyCommit", () => {
           commit.signed_header.header.data_hash,
         );
       },
-      "header.validators_hash": (commit) => {
-        commit.signed_header.header.validators_hash = flipLastHexNibble(
-          commit.signed_header.header.validators_hash,
-        );
-      },
       "header.next_validators_hash": (commit) => {
         commit.signed_header.header.next_validators_hash = flipLastHexNibble(
           commit.signed_header.header.next_validators_hash,
