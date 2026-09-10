@@ -6,8 +6,8 @@
     "type": "git",
     "url": "https://github.com/freedomofpress/cometbft-ts"
   },
-  "main": "dist/client.js",
-  "types": "dist/client.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "proto:gen": "buf generate buf.build/cometbft/cometbft --path cometbft/types/v1/types.proto --path cometbft/types/v1/canonical.proto --path cometbft/types/v1/validator.proto --path cometbft/version/v1/types.proto",
     "build": "tsc",
