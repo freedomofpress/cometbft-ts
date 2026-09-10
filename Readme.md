@@ -7,16 +7,20 @@ _Note: this library has not been audited, thus its security has not been indepen
 ## Usage
 
 ```ts
-import { importCommit } from "./src/commit";
-import { importValidators } from "./src/validators";
-import { verifyCommit } from "./src/lightclient";
+import {
+  importCommit,
+  importValidators,
+  verifyCommit,
+} from "@freedomofpress/cometbft";
 
 // JSON from CometBFT RPC: /commit and /validators
 const sh = importCommit(commitJson);
 const { proto: vset, cryptoIndex } = await importValidators(validatorsJson);
 
-const result = await verifyCommit(sh, vset, cryptoIndex);
+const result = await verifyCommit(sh, vset, cryptoIndex, "my-chain-id");
 ```
+
+Configure the expected chain ID independently of the RPC response.
 
 ## Tests
 
