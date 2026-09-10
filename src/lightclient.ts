@@ -17,6 +17,7 @@ import {
 } from "./proto/cometbft/types/v1/validator";
 import { Consensus } from "./proto/cometbft/version/v1/types";
 import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
+import { MAX_TOTAL_VOTING_POWER } from "./validators";
 
 export type CryptoIndex = Map<string, CryptoKey>;
 
@@ -259,21 +260,32 @@ export async function verifyCommit(
     );
   }
 
-  const totalPower = vset?.totalVotingPower ?? 0n;
+  const totalPower = vset?.totalVotingPower;
   if (!Array.isArray(vset?.validators) || vset.validators.length === 0) {
     throw new Error("ValidatorSet has no validators");
   }
-  if (totalPower <= 0n) {
+  if (typeof totalPower !== "bigint" || totalPower <= 0n) {
     throw new Error("ValidatorSet total power must be positive");
   }
 
   // Build address -> validator map
   const setByAddrHex = new Map<string, ProtoValidator>();
+  let countedPower = 0n;
   for (const v of vset.validators) {
     const hex = Uint8ArrayToHex(v.address).toUpperCase();
     if (setByAddrHex.has(hex))
       throw new Error(`Duplicate validator address in set: ${hex}`);
+    if (typeof v.votingPower !== "bigint" || v.votingPower <= 0n) {
+      throw new Error(`Invalid voting power for validator: ${hex}`);
+    }
+    countedPower += v.votingPower;
+    if (countedPower > MAX_TOTAL_VOTING_POWER) {
+      throw new Error("Total voting power exceeds CometBFT maximum");
+    }
     setByAddrHex.set(hex, v);
+  }
+  if (totalPower !== countedPower) {
+    throw new Error("ValidatorSet total power does not match validators");
   }
 
   if (commit.signatures.length !== vset.validators.length) {

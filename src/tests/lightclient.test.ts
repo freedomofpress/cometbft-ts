@@ -8,7 +8,7 @@ import {
 } from "../encoding";
 import { verifyCommit } from "../lightclient";
 import type { CommitJson, ValidatorJson } from "../types";
-import { importValidators } from "../validators";
+import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators";
 import commitFixture from "./fixtures/commit-12.json";
 import validatorsFixture from "./fixtures/validators-12.json";
 
@@ -145,7 +145,7 @@ describe("lightclient.verifyCommit", () => {
 
     await expect(
       verifyCommit(sh, vsetZeroOne, cryptoIndex, CHAIN_ID),
-    ).rejects.toThrow(/validator hash does not match validator set/i);
+    ).rejects.toThrow(/invalid voting power/i);
   });
 
   it("throws when SignedHeader is missing header/commit", async () => {
@@ -202,6 +202,37 @@ describe("lightclient.verifyCommit", () => {
     const vset = { ...vset0, totalVotingPower: 0n };
     await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
       /total power/i,
+    );
+  });
+
+  it("rejects a total voting power that does not match the validators", async () => {
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const { proto: vset0, cryptoIndex } = await importValidators(vResp);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
+    const vset = { ...vset0, totalVotingPower: vset0.totalVotingPower - 1n };
+
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
+      /total power does not match/i,
+    );
+  });
+
+  it("rejects excessive total voting power", async () => {
+    const vResp = validatorsFixture as unknown as ValidatorJson;
+    const { proto: vset0, cryptoIndex } = await importValidators(vResp);
+    const sh = importCommit(commitFixture as unknown as CommitJson);
+    const validators = vset0.validators.map((validator, index) =>
+      index === 0
+        ? { ...validator, votingPower: MAX_TOTAL_VOTING_POWER }
+        : validator,
+    );
+    const vset = {
+      ...vset0,
+      validators,
+      totalVotingPower: MAX_TOTAL_VOTING_POWER + 3n,
+    };
+
+    await expect(verifyCommit(sh, vset, cryptoIndex, CHAIN_ID)).rejects.toThrow(
+      /exceeds CometBFT maximum/i,
     );
   });
 
