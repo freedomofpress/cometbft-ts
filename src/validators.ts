@@ -2,6 +2,8 @@ import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
 import { Validator, ValidatorSet } from "./proto/cometbft/types/v1/validator";
 import type { ValidatorJson } from "./types";
 
+export const MAX_TOTAL_VOTING_POWER = (1n << 60n) - 1n;
+
 export async function importValidators(resp: ValidatorJson): Promise<{
   proto: ValidatorSet;
   cryptoIndex: Map<string, CryptoKey>;
@@ -13,6 +15,7 @@ export async function importValidators(resp: ValidatorJson): Promise<{
   if (!resp.validators || resp.validators.length < 1) {
     throw new Error("Missing validators");
   }
+
   let countedPower = 0n;
 
   for (const v of resp.validators) {
@@ -53,21 +56,21 @@ export async function importValidators(resp: ValidatorJson): Promise<{
     seen.add(addrHex);
     cryptoIndex.set(addrHex, key);
 
-    const powerNum = Number(v.voting_power) || Number(v.power);
-    if (
-      !Number.isFinite(powerNum) ||
-      !Number.isInteger(powerNum) ||
-      powerNum < 1
-    ) {
+    const power = v.voting_power ?? v.power;
+    if (typeof power !== "string" || !/^[1-9]\d*$/.test(power)) {
       throw new Error(`Invalid voting power for ${addrHex}`);
     }
-    countedPower += BigInt(powerNum);
+    const votingPower = BigInt(power);
+    countedPower += votingPower;
+    if (countedPower > MAX_TOTAL_VOTING_POWER) {
+      throw new Error("Total voting power exceeds CometBFT maximum");
+    }
 
     const protoV: Validator = {
       address: new Uint8Array(sha.slice(0, 20)),
       pubKeyBytes: rawKey,
       pubKeyType: "ed25519",
-      votingPower: BigInt(powerNum),
+      votingPower,
       proposerPriority: 0n, // JSON gives string "0"; use 0n by default
     };
 

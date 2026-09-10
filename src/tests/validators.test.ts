@@ -6,7 +6,7 @@ import {
   Uint8ArrayToHex,
 } from "../encoding";
 import type { ValidatorJson } from "../types";
-import { importValidators } from "../validators";
+import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators";
 import validatorsFixture from "./fixtures/validators-12.json";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -27,7 +27,7 @@ function filledBytes(seed: number, len = 32): Uint8Array {
 
 async function makeValidatorEntry(
   pub: Uint8Array,
-  power: number,
+  power: number | string,
   opts?: { lowercaseAddr?: boolean; keyType?: string },
 ) {
   const keyType = opts?.keyType ?? "tendermint/PubKeyEd25519";
@@ -186,6 +186,39 @@ describe("importValidators (browser crypto)", () => {
     const resp = makeResponse([v1, v2], "7");
     await expect(importValidators(resp)).rejects.toThrow(
       /Invalid voting power/i,
+    );
+  });
+
+  it("parses voting power without losing precision", async () => {
+    const power = "9007199254740993";
+    const validator = await makeValidatorEntry(filledBytes(1), power);
+
+    const out = await importValidators(makeResponse([validator]));
+
+    expect(out.proto.validators[0].votingPower).toBe(BigInt(power));
+    expect(out.proto.totalVotingPower).toBe(BigInt(power));
+  });
+
+  it.each(["-1", "1.5", "1e3", "01", ""])(
+    "rejects invalid voting power %j",
+    async (power) => {
+      const validator = await makeValidatorEntry(filledBytes(1), power);
+
+      await expect(importValidators(makeResponse([validator]))).rejects.toThrow(
+        /Invalid voting power/i,
+      );
+    },
+  );
+
+  it("rejects excessive total voting power", async () => {
+    const v1 = await makeValidatorEntry(
+      filledBytes(1),
+      MAX_TOTAL_VOTING_POWER.toString(),
+    );
+    const v2 = await makeValidatorEntry(filledBytes(2), 1);
+
+    await expect(importValidators(makeResponse([v1, v2]))).rejects.toThrow(
+      /exceeds CometBFT maximum/i,
     );
   });
 });
