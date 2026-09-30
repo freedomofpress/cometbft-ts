@@ -2,12 +2,33 @@
   "name": "@freedomofpress/cometbft",
   "version": "0.1.5",
   "description": "A CometBFT light client for the browser.",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/freedomofpress/cometbft-ts"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./dist/*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./dist/*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "proto:gen": "buf generate buf.build/cometbft/cometbft --path cometbft/types/v1/types.proto --path cometbft/types/v1/canonical.proto --path cometbft/types/v1/validator.proto --path cometbft/version/v1/types.proto",
     "build": "tsc",

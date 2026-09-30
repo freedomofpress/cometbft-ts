@@ -4,10 +4,10 @@ import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
-} from "../encoding";
-import type { ValidatorJson } from "../types";
-import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators";
-import validatorsFixture from "./fixtures/validators-12.json";
+} from "../encoding.js";
+import type { ValidatorJson } from "../types.js";
+import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators.js";
+import validatorsFixture from "./fixtures/validators-12.json" with { type: "json" };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -1,16 +1,16 @@
 // src/commit.ts
-import { base64ToUint8Array, hexToUint8Array } from "./encoding";
+import { base64ToUint8Array, hexToUint8Array } from "./encoding.js";
 import {
   BlockID,
   Commit,
   CommitSig,
   Header,
   SignedHeader,
-} from "./proto/cometbft/types/v1/types";
-import { BlockIDFlag } from "./proto/cometbft/types/v1/validator";
-import { Consensus } from "./proto/cometbft/version/v1/types";
-import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
-import type { CommitJson } from "./types";
+} from "./proto/cometbft/types/v1/types.js";
+import { BlockIDFlag } from "./proto/cometbft/types/v1/validator.js";
+import { Consensus } from "./proto/cometbft/version/v1/types.js";
+import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp.js";
+import type { CommitJson } from "./types.js";
 
 // ---- helpers ----
 function assertLen(name: string, u8: Uint8Array, expect: number) {
