@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { importCommit } from "../commit";
-import { base64ToUint8Array, Uint8ArrayToBase64 } from "../encoding";
-import type { CommitJson } from "../types";
-import commitFixture from "./fixtures/commit-12.json";
+import { importCommit } from "../commit.js";
+import { base64ToUint8Array, Uint8ArrayToBase64 } from "../encoding.js";
+import type { CommitJson } from "../types.js";
+import commitFixture from "./fixtures/commit-12.json" with { type: "json" };
 
 // Deep-clone plain JSON-like objects
 function clone<T>(x: T): T {

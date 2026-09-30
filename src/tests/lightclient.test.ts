@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { importCommit } from "../commit";
+import { importCommit } from "../commit.js";
 import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
-} from "../encoding";
-import { verifyCommit } from "../lightclient";
-import type { CommitJson, ValidatorJson } from "../types";
-import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators";
-import commitFixture from "./fixtures/commit-12.json";
-import validatorsFixture from "./fixtures/validators-12.json";
+} from "../encoding.js";
+import { verifyCommit } from "../lightclient.js";
+import type { CommitJson, ValidatorJson } from "../types.js";
+import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators.js";
+import commitFixture from "./fixtures/commit-12.json" with { type: "json" };
+import validatorsFixture from "./fixtures/validators-12.json" with { type: "json" };
 
 const CHAIN_ID = commitFixture.signed_header.header.chain_id;
 

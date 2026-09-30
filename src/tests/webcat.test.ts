@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { importCommit } from "../commit";
-import { Uint8ArrayToBase64, Uint8ArrayToHex } from "../encoding";
-import { verifyCommit } from "../lightclient";
-import type { CommitJson, ValidatorJson } from "../types";
-import { importValidators } from "../validators";
-import blockFixture from "./fixtures/webcat.json";
+import { importCommit } from "../commit.js";
+import { Uint8ArrayToBase64, Uint8ArrayToHex } from "../encoding.js";
+import { verifyCommit } from "../lightclient.js";
+import type { CommitJson, ValidatorJson } from "../types.js";
+import { importValidators } from "../validators.js";
+import blockFixture from "./fixtures/webcat.json" with { type: "json" };
 
 const CHAIN_ID = blockFixture.signed_header.header.chain_id;
 

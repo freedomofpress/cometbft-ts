@@ -4,7 +4,7 @@ import {
   hexToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
-} from "../encoding";
+} from "../encoding.js";
 
 describe("encoding", () => {
   it("converts Uint8Array to Base64", () => {

@@ -1,6 +1,9 @@
-import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding";
-import { Validator, ValidatorSet } from "./proto/cometbft/types/v1/validator";
-import type { ValidatorJson } from "./types";
+import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding.js";
+import {
+  Validator,
+  ValidatorSet,
+} from "./proto/cometbft/types/v1/validator.js";
+import type { ValidatorJson } from "./types.js";
 
 export const MAX_TOTAL_VOTING_POWER = (1n << 60n) - 1n;
 

@@ -10,3 +10,4 @@ plugins:
       - snakeToCamel=true
       - outputServices=none
       - useDate=false
+      - importSuffix=.js

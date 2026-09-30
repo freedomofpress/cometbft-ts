@@ -1,23 +1,23 @@
 // src/lightclient.ts
-import { Uint8ArrayToHex } from "./encoding";
+import { Uint8ArrayToHex } from "./encoding.js";
 import {
   CanonicalBlockID,
   CanonicalPartSetHeader,
   CanonicalVote,
-} from "./proto/cometbft/types/v1/canonical";
+} from "./proto/cometbft/types/v1/canonical.js";
 import {
   BlockID,
   SignedHeader,
   SignedMsgType,
-} from "./proto/cometbft/types/v1/types";
+} from "./proto/cometbft/types/v1/types.js";
 import {
   SimpleValidator as ProtoSimpleValidator,
   Validator as ProtoValidator,
   ValidatorSet as ProtoValidatorSet,
-} from "./proto/cometbft/types/v1/validator";
-import { Consensus } from "./proto/cometbft/version/v1/types";
-import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp";
-import { MAX_TOTAL_VOTING_POWER } from "./validators";
+} from "./proto/cometbft/types/v1/validator.js";
+import { Consensus } from "./proto/cometbft/version/v1/types.js";
+import { Timestamp as PbTimestamp } from "./proto/google/protobuf/timestamp.js";
+import { MAX_TOTAL_VOTING_POWER } from "./validators.js";
 
 export type CryptoIndex = Map<string, CryptoKey>;
 
