@@ -75,7 +75,6 @@ describe("importValidators (browser crypto)", () => {
       expect(key.type).toBe("public");
       expect((key.algorithm as EcKeyAlgorithm).name).toBe("Ed25519");
       expect(key.usages).toEqual(["verify"]);
-      expect(key.extractable).toBe(false);
     }
 
     // proto validators should have bytes + bigint fields
@@ -247,8 +246,6 @@ describe("validators fixture:", () => {
       expect(key.type).toBe("public");
       expect((key.algorithm as EcKeyAlgorithm).name).toBe("Ed25519");
       expect(key.usages).toEqual(["verify"]);
-      expect(key.extractable).toBe(false);
-      await expect(crypto.subtle.exportKey("raw", key)).rejects.toBeTruthy();
     }
 
     // proto validators content matches derived bytes
