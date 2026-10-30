@@ -1,5 +1,13 @@
 // src/lightclient.ts
-import { Uint8ArrayToHex } from "./encoding.js";
+import {
+  concatBytes,
+  getSubtle,
+  hashLeaf,
+  rootHash,
+  uint8ArrayEqual,
+  Uint8ArrayToHex,
+} from "@freedomofpress/crypto-browser";
+
 import {
   CanonicalBlockID,
   CanonicalPartSetHeader,
@@ -84,16 +92,6 @@ function hasTwoThirds(signed: bigint, total: bigint): boolean {
   return signed * 3n > total * 2n;
 }
 
-function concatBytes(...parts: Uint8Array[]): Uint8Array {
-  const length = parts.reduce((acc, p) => acc + p.length, 0);
-  const out = new Uint8Array(length);
-  let offset = 0;
-  for (const p of parts) {
-    out.set(p, offset);
-    offset += p.length;
-  }
-  return out;
-}
 
 function encodeUvarintBigint(value: bigint): Uint8Array {
   if (value < 0n) throw new Error("uvarint cannot encode negative values");
@@ -149,47 +147,9 @@ function encodeBlockIdForHeaderHash(
   return BlockID.encode(blockId).finish();
 }
 
-async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new Uint8Array(data)),
-  );
-}
-
-async function hashLeaf(leaf: Uint8Array): Promise<Uint8Array> {
-  return sha256(concatBytes(new Uint8Array([0]), leaf));
-}
-
-async function hashInner(
-  left: Uint8Array,
-  right: Uint8Array,
-): Promise<Uint8Array> {
-  return sha256(concatBytes(new Uint8Array([1]), left, right));
-}
-
-function getSplitPoint(size: number): number {
-  if (size < 1) throw new Error("Cannot split an empty merkle tree");
-  const p = 2 ** Math.floor(Math.log2(size));
-  return p < size ? p : p / 2;
-}
-
-async function simpleMerkleHashFromByteSlices(
-  chunks: Uint8Array[],
-): Promise<Uint8Array> {
+async function merkleRoot(chunks: Uint8Array[]): Promise<Uint8Array> {
   if (chunks.length === 0) throw new Error("Cannot hash an empty merkle tree");
-  if (chunks.length === 1) return hashLeaf(chunks[0]);
-
-  const split = getSplitPoint(chunks.length);
-  const left = await simpleMerkleHashFromByteSlices(chunks.slice(0, split));
-  const right = await simpleMerkleHashFromByteSlices(chunks.slice(split));
-  return hashInner(left, right);
-}
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
+  return rootHash(await Promise.all(chunks.map(hashLeaf)));
 }
 
 async function hashHeaderForBlockId(
@@ -218,7 +178,7 @@ async function hashHeaderForBlockId(
     encodeBytes(header.proposerAddress),
   ];
 
-  return simpleMerkleHashFromByteSlices(fields);
+  return merkleRoot(fields);
 }
 
 async function hashValidatorSet(vset: ProtoValidatorSet): Promise<Uint8Array> {
@@ -233,7 +193,7 @@ async function hashValidatorSet(vset: ProtoValidatorSet): Promise<Uint8Array> {
       votingPower: validator.votingPower ?? 0n,
     }).finish();
   });
-  return simpleMerkleHashFromByteSlices(validators);
+  return merkleRoot(validators);
 }
 
 export async function verifyCommit(
@@ -242,6 +202,7 @@ export async function verifyCommit(
   cryptoIndex: CryptoIndex,
   expectedChainId: string,
 ): Promise<VerifyOutcome> {
+  const subtle = await getSubtle();
   if (!sh?.header || !sh?.commit) {
     throw new Error("SignedHeader missing header/commit");
   }
@@ -293,7 +254,7 @@ export async function verifyCommit(
   }
 
   const validatorSetHash = await hashValidatorSet(vset);
-  if (!bytesEqual(validatorSetHash, header.validatorsHash)) {
+  if (!uint8ArrayEqual(validatorSetHash, header.validatorsHash)) {
     throw new Error("Header validator hash does not match validator set");
   }
 
@@ -318,7 +279,7 @@ export async function verifyCommit(
   const partsHash: Uint8Array = bid.partSetHeader.hash;
   const partsTotal: number = bid.partSetHeader.total;
   const expectedBlockIdHash = await hashHeaderForBlockId(header);
-  const headerMatchesCommitBlockId = bytesEqual(
+  const headerMatchesCommitBlockId = uint8ArrayEqual(
     expectedBlockIdHash,
     blockIdHash,
   );
@@ -374,7 +335,7 @@ export async function verifyCommit(
     // Verify signature
     let ok = false;
     try {
-      ok = await crypto.subtle.verify(
+      ok = await subtle.verify(
         { name: "Ed25519" },
         key,
         new Uint8Array(s.signature),

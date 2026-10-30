@@ -1,4 +1,5 @@
-import { base64ToUint8Array, Uint8ArrayToHex } from "./encoding.js";
+import { base64ToUint8Array, getSubtle, sha256, Uint8ArrayToHex } from "@freedomofpress/crypto-browser";
+
 import {
   Validator,
   ValidatorSet,
@@ -11,6 +12,7 @@ export async function importValidators(resp: ValidatorJson): Promise<{
   proto: ValidatorSet;
   cryptoIndex: Map<string, CryptoKey>;
 }> {
+  const subtle = await getSubtle();
   const seen: Set<string> = new Set();
   const cryptoIndex = new Map<string, CryptoKey>();
   const protoValidators: Validator[] = [];
@@ -37,7 +39,7 @@ export async function importValidators(resp: ValidatorJson): Promise<{
     }
 
     const rawKey = base64ToUint8Array(v.pub_key.value);
-    const key = await crypto.subtle.importKey(
+    const key = await subtle.importKey(
       "raw",
       new Uint8Array(rawKey),
       { name: "Ed25519" },
@@ -45,9 +47,7 @@ export async function importValidators(resp: ValidatorJson): Promise<{
       ["verify"],
     );
 
-    const sha = new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new Uint8Array(rawKey)),
-    );
+    const sha = await sha256(rawKey);
     const addrHex = Uint8ArrayToHex(sha.slice(0, 20)).toUpperCase();
 
     if (addrHex !== v.address.toUpperCase()) {
