@@ -4,6 +4,7 @@ import {
   getSubtle,
   hashLeaf,
   rootHash,
+  stringToUint8Array,
   uint8ArrayEqual,
   Uint8ArrayToHex,
 } from "@freedomofpress/crypto-browser";
@@ -92,7 +93,6 @@ function hasTwoThirds(signed: bigint, total: bigint): boolean {
   return signed * 3n > total * 2n;
 }
 
-
 function encodeUvarintBigint(value: bigint): Uint8Array {
   if (value < 0n) throw new Error("uvarint cannot encode negative values");
 
@@ -114,7 +114,7 @@ function encodeString(value: string): Uint8Array {
   if (value.length === 0) return new Uint8Array();
   return concatBytes(
     new Uint8Array([0x0a]),
-    encodeLengthPrefixed(new TextEncoder().encode(value)),
+    encodeLengthPrefixed(stringToUint8Array(value)),
   );
 }
 

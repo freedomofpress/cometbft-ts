@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "A CometBFT light client for the browser.",
   "type": "module",
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/freedomofpress/cometbft-ts"
@@ -34,7 +35,8 @@
     "build": "tsc",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "lint": "npx eslint --ignore-pattern '**/*.test.ts' . --fix && npx prettier --write ."
+    "lint": "eslint .",
+    "format": "eslint . --fix && prettier --write ."
   },
   "keywords": [
     "cometbft",
@@ -48,11 +50,12 @@
   "homepage": "https://github.com/freedomofpress/cometbft-ts#readme",
   "bugs": "https://github.com/freedomofpress/cometbft-ts/issues",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint-plugin-simple-import-sort": "^14.0.0",
+    "prettier": "^3.9.10",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.14.1",

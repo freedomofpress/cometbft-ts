@@ -1,5 +1,8 @@
 // src/commit.ts
-import { base64ToUint8Array, hexToUint8Array } from "@freedomofpress/crypto-browser";
+import {
+  base64ToUint8Array,
+  hexToUint8Array,
+} from "@freedomofpress/crypto-browser";
 
 import {
   BlockID,

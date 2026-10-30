@@ -1,15 +1,13 @@
-import { describe, expect, it } from "vitest";
-
 import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
 } from "@freedomofpress/crypto-browser";
+import { describe, expect, it } from "vitest";
+
 import type { ValidatorJson } from "../types.js";
 import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators.js";
 import validatorsFixture from "./fixtures/validators-12.json" with { type: "json" };
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 async function sha256(u8: Uint8Array): Promise<Uint8Array> {
   const buf = await crypto.subtle.digest("SHA-256", new Uint8Array(u8));
