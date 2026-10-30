@@ -1,12 +1,12 @@
 // src/lightclient.ts
 import {
   concatBytes,
-  getSubtle,
   hashLeaf,
   rootHash,
   stringToUint8Array,
   uint8ArrayEqual,
   Uint8ArrayToHex,
+  verifySignature,
 } from "@freedomofpress/crypto-browser";
 
 import {
@@ -82,11 +82,7 @@ function makePrecommitSignBytesProto(
   // Go's protoio.MarshalDelimited length-prefixes the canonical vote. Using
   // the same varint prefix keeps signatures compatible with both v0.34.x and
   // v1.0.x chains.
-  const prefix = encodeUvarint(body.length);
-  const out = new Uint8Array(prefix.length + body.length);
-  out.set(prefix, 0);
-  out.set(body, prefix.length);
-  return out;
+  return concatBytes(encodeUvarint(body.length), body);
 }
 
 function hasTwoThirds(signed: bigint, total: bigint): boolean {
@@ -202,7 +198,6 @@ export async function verifyCommit(
   cryptoIndex: CryptoIndex,
   expectedChainId: string,
 ): Promise<VerifyOutcome> {
-  const subtle = await getSubtle();
   if (!sh?.header || !sh?.commit) {
     throw new Error("SignedHeader missing header/commit");
   }
@@ -332,15 +327,9 @@ export async function verifyCommit(
       continue;
     }
 
-    // Verify signature
     let ok = false;
     try {
-      ok = await subtle.verify(
-        { name: "Ed25519" },
-        key,
-        new Uint8Array(s.signature),
-        new Uint8Array(signBytes),
-      );
+      ok = await verifySignature(key, signBytes, new Uint8Array(s.signature));
     } catch {
       ok = false;
     }
