@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { importCommit } from "../commit.js";
-import { base64ToUint8Array, Uint8ArrayToBase64 } from "../encoding.js";
+import { base64ToUint8Array, Uint8ArrayToBase64 } from "@freedomofpress/crypto-browser";
 import type { CommitJson } from "../types.js";
 import commitFixture from "./fixtures/commit-12.json" with { type: "json" };
 

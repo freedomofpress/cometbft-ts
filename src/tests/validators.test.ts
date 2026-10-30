@@ -4,7 +4,7 @@ import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
-} from "../encoding.js";
+} from "@freedomofpress/crypto-browser";
 import type { ValidatorJson } from "../types.js";
 import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators.js";
 import validatorsFixture from "./fixtures/validators-12.json" with { type: "json" };

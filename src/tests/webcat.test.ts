@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { importCommit } from "../commit.js";
-import { Uint8ArrayToBase64, Uint8ArrayToHex } from "../encoding.js";
+import { Uint8ArrayToBase64, Uint8ArrayToHex } from "@freedomofpress/crypto-browser";
 import { verifyCommit } from "../lightclient.js";
 import type { CommitJson, ValidatorJson } from "../types.js";
 import { importValidators } from "../validators.js";
