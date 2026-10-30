@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
-
-import { importCommit } from "../commit.js";
 import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
   Uint8ArrayToHex,
 } from "@freedomofpress/crypto-browser";
+import { describe, expect, it } from "vitest";
+
+import { importCommit } from "../commit.js";
 import { verifyCommit } from "../lightclient.js";
 import type { CommitJson, ValidatorJson } from "../types.js";
 import { importValidators, MAX_TOTAL_VOTING_POWER } from "../validators.js";

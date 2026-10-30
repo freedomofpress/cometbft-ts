@@ -2,6 +2,7 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import * as tseslint from "typescript-eslint";
 
 export default [
+  { ignores: ["dist/", "coverage/", "src/proto/"] },
   ...tseslint.configs.recommended,
 
   {
@@ -26,6 +27,13 @@ export default [
       ],
 
       "no-delete-var": "off",
+    },
+  },
+  {
+    files: ["src/tests/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
 ];

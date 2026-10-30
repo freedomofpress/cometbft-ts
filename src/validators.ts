@@ -1,4 +1,9 @@
-import { base64ToUint8Array, getSubtle, sha256, Uint8ArrayToHex } from "@freedomofpress/crypto-browser";
+import {
+  base64ToUint8Array,
+  getSubtle,
+  sha256,
+  Uint8ArrayToHex,
+} from "@freedomofpress/crypto-browser";
 
 import {
   Validator,

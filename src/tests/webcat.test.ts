@@ -1,7 +1,10 @@
+import {
+  Uint8ArrayToBase64,
+  Uint8ArrayToHex,
+} from "@freedomofpress/crypto-browser";
 import { describe, expect, it } from "vitest";
 
 import { importCommit } from "../commit.js";
-import { Uint8ArrayToBase64, Uint8ArrayToHex } from "@freedomofpress/crypto-browser";
 import { verifyCommit } from "../lightclient.js";
 import type { CommitJson, ValidatorJson } from "../types.js";
 import { importValidators } from "../validators.js";
@@ -130,7 +133,7 @@ describe("lightclient.verifyCommit", () => {
   });
 
   it("rejects malformed signature bytes", async () => {
-    const validators = blockFixture.validator_set as unknown as ValidatorJson;
+    const _validators = blockFixture.validator_set as unknown as ValidatorJson;
     const commit = clone(blockFixture) as unknown as CommitJson;
 
     // Truncate the signature (must be 64 bytes for Ed25519)
