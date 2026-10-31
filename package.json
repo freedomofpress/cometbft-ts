@@ -1,6 +1,6 @@
 {
   "name": "@freedomofpress/cometbft",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A CometBFT light client for the browser.",
   "type": "module",
   "sideEffects": false,
@@ -59,6 +59,6 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.14.1",
-    "@freedomofpress/crypto-browser": "^0.2.2"
+    "@freedomofpress/crypto-browser": "^0.3.0"
   }
 }
