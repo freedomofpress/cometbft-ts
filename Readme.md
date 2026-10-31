@@ -2,7 +2,7 @@
 
 _Note: this library has not been audited, thus its security has not been independently verified._
 
-`cometbft-ts` is a small TypeScript library for verifying CometBFT commits in the browser. It takes the JSON you get from CometBFT ABCI/RPC for a `commit` and its `validators`, constructs canonical sign-bytes via protobuf, and verifies Ed25519 signatures and >2/3 quorum. It is verification-only and throws on any cryptographic or format error. Hashing, encoding, Merkle trees and signature verification come from [crypto-browser](https://github.com/freedomofpress/crypto-browser), which uses the native [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) and falls back to a pure implementation for Ed25519 where the engine lacks it. The library is developed as part of [WEBCAT](https://github.com/freedomofpress/webcat) and is **not audited**.
+`cometbft-ts` is a small TypeScript library for verifying CometBFT commits in the browser. It takes the JSON you get from CometBFT ABCI/RPC for a `commit` and its `validators`, constructs canonical sign-bytes via protobuf, and verifies Ed25519 signatures and >2/3 quorum. It is verification-only and throws on any cryptographic or format error. Hashing, encoding, Merkle trees and signature verification come from [crypto-browser](https://github.com/freedomofpress/crypto-browser), which uses the native [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API); applications targeting engines without Ed25519 call `installEd25519Fallback()` from `@freedomofpress/crypto-browser/noble` once at startup. The library is developed as part of [WEBCAT](https://github.com/freedomofpress/webcat) and is **not audited**.
 
 ## Usage
 
